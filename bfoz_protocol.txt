@@ -287,48 +287,156 @@ Export HEX file to PC
 
 "PocketPro" Mode
 
-	This mode allows the Pocket to act as a bench-top programmer. It accepts commands over the serial port and then does what it's told.
+	This mode allows the Pocket to act as a bench-top programmer. It accepts commands over the serial port and then does what it's told. Pocket pro mode can be detected by sending a 0x01, if 'X' or "PP" is returned then the programmer is ready to accept commands.
 
 	As seen from Pocket
 
+	PINGmp:
 		send	'P'					//Announce PocketPro mode
 		send	'P'
-		receive	1 byte			//Wait for any byte
+		receive	1 byte			//Wait for ACK (any byte)
 	LWaitCm:
-		receive	1 byte			//0: PocketPro mode	1:Restart PocketPro mode
+		switch(receive	1 byte)	//0: PocketPro mode	1:Restart PocketPro mode
+		{
+			case 0:	goto PgmMode		//Enter programmer mode
+			case 1:	goto PINGmp			//Re-announce PocketPro
+			default:	goto LWaitCm		//Wait for another command
+		}
+	PgmMode
 		receive	1 byte			//Programming speed	'0': Short delay	'1': long delay
 		send	'P'					//Acknowledge programmer command
-	PWaitCom:
+	PWaitCom
 		switch(receive 1 byte)
 		{
-			0:	goto PWaitCom	//PgmCommand
-			1:	goto DoQuitX	//VppOnOff (don't use this one)
-			2: 	//Toggle Vpp
-				receive 1 byte	//Which pins to use for Vpp	'1':Vpp1	'2':Vpp2
-				send	'Y'		//Return confirmation
-				goto PWaitCom
-			3:	//ProgROM
-			4:	//ProgEROM
-				send	'M'		//Request 16 bytes
-				if(receive 1 byte == 0xFF)
-					goto QuitU
-				else
+			0:	goto PWaitCom				//Wait for another command
+			1:									//VppOnOff (don't use this one)
+				send	'X'						//return error
+				goto LWaitCm					//wait for another command
+			2: 								//Set Vpp pins
+				receive 1 byte					//Which pins to use for Vpp '1':Vpp1 '2':Vpp2
+				send	'Y'						//Return confirmation
+				goto PWaitCom					//Wait for another command
+			3:									//Program and Verfiy ROM
+				send	'M'						//Request 2 bytes of data (1 word, MSB first)
+				while()
 				{
-					receive 1 byte
-					send	'M'	//Request more data (I don't get this)
+					if(1st byte != 0xFF)
+					{
+						//Program the data
+						if(failure)
+						{
+							send	'F'			//Signal failure
+							send address 		//Failure address word (MSB first)
+						}
+						else
+							send	'M'			//Request more data
+					}
+					else
+						goto	QuitU
 				}
-			5:	//ReadROM
-			6:	//ProgFuse
-			7:	//ProgEFuse
-			8:	//ReadFuse
-			9:	//ReadEMem
-			10:	//WriteEMem
-			11:	//IsErased?
-			12:	//EraseAll
-			13: goto QuitU	//QuitNoRes
-			14: break;	//QuitProg
+			4:									//Program and verify EEPROM
+				send	'M'						//Request 2 bytes of data (1 word, MSB first)
+				while()
+				{
+					if(1st byte != 0xFF)
+					{
+						//Program the data
+						if(failure)
+						{
+							send	'F'			//Signal failure
+							send address 		//Failure address word (MSB first)
+						}
+						else
+							send	'M'			//Request more data
+					}
+					else
+						goto	QuitU
+				}
+			5:									//Read 8 words from ROM
+				for 0:8						//	read address is incremented each time
+				{
+					send	Hibyte
+					send	Lobyte
+				}
+				goto	PWaitCom
+
+			6:									//Program Fuse data
+				receive	FuseHi				//Receive the high byte of the fuse word
+				receive	FuseLo				//Receive the low byte of the fuse word
+				receive	IDHi
+				receive	IDLo
+				//program ID locations
+				if(ID!=blank)					//If the id locations weren't blank
+					send	'I'
+				//program fuses
+				if(Fuse!=blank)				//If the fuses weren't blank
+					send	'F'
+				if(successfull)
+					send	'Y'
+				goto	PWaitCom					//Wait for further instructions
+			
+			7:									//Program EEPROM type fuses
+				receive	FuseHi				//Receive the high byte of the fuse word
+				receive	FuseLo				//Receive the low byte of the fuse word
+				receive	IDHi
+				receive	IDLo
+				//program ID locations
+				if(ID!=blank)					//If the id locations weren't blank
+					send	'I'
+				//program fuses
+				if(Fuse!=blank)				//If the fuses weren't blank
+					send	'F'
+				if(successfull)
+					send	'Y'
+				goto	PWaitCom					//Wait for further instructions
+
+			8:									//Read Fuse and ID words
+				send	IDHi
+				send	IDLo
+				send	FuseHi
+				send	FuseLo
+				goto	PWaitCom
+			9:									//Read 8 bytes from EEPROM
+				for 0:8
+				{
+					send	1 byte
+				}
+				goto	PWaitCom
+			10:								//Write 8 bytes to EEPROM
+				send	'M'						//Request data
+				while(receive 1 byte =='Y')	//More data to program?
+				{									//Yes:
+					receive 8 bytes					//Receive 8 EEPROM bytes
+					if(verify_error)
+					{
+						send	'N'						//Signal an error
+						send	1 byte					//The failure address
+						goto	PWaitCom					//Wait for another command
+					}
+					else
+						send	'M'
+				}
+				else								//No:
+					goto	LWaitCm				//Wait for another command
+				
+			11:								//Blank check the ROM
+				receive 1 byte					//MSB of ROM byte size
+				receive 1 byte					//LSB of ROM byte size
+				if(blank)		send	'Y'	//Return results (only one will be sent)
+				if(ROM!=blank)	send	'R'
+				if(ID!=blank)	send	'I'
+				if(FUSE!=blank) send	'F'
+				goto	PWaitCom					//Wait for another command
+			12:								//Bulk erase an EEPROM based device
+				receive 1 byte					//Vpp pin selection
+				receive 1 byte					//MSB of EEPROM size word
+				receive 1 byte					//LSB of EEPROM size word
+				send	'Y'						//Return confirmation
+				goto	PWaitCom					//Wait for another command
+			13: 								//Quit programmer mode quietly
+				goto LWaitCm					//Wait for another command
+			14:								//Quit programmer mode with confirmation
+				send	'Q'
+				goto	LWaitCm					//Wait for another command
 			//Process command
 		}
-		send	'Q'		//Signal quit
-	QuitU:
-		goto	LWaitCm	//Wait for further instructions

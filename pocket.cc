@@ -4,8 +4,13 @@
  * This software and all of its components are available under the BSD License
  * For a copy of the BSD License see http://www.freebsd.org
  * */
+#include <fcntl.h>
 
 #include "pocket.h"
+#include "intelhex.h"
+
+#define	HIBYTE(a)	(u_int8_t)(a>>8)
+#define	LOBYTE(a)	(u_int8_t)(a&0x00FF)
 
 char *MessageString[NUM_MESSAGES];
 int	nummsg=0;
@@ -18,6 +23,8 @@ pocket_t::pocket_t()
 	nummsg = 0;
 	chips = NULL;
 	numchips = 0;
+	menu_num = 0;
+	prog_speed = '0';
 }
 
 bool pocket_t::write16(u_int8_t buf)
@@ -44,7 +51,6 @@ bool pocket_t::write16(const void *buf, size_t nbytes)
 			}
 			else
 			{
-				//printf("Waiting for R\n");
 				read(&in, 1);				//If at the end of a packet...
 				if(in=='R')						//...wait for the pocket to respond
 				{
@@ -102,7 +108,6 @@ bool pocket_t::write16a(const void *buf, size_t nbytes)
 			}
 			else
 			{
-				//printf("Waiting for R\n");
 				read(&in, 1);				//If at the end of a packet...
 				if(in=='M')						//...wait for the pocket to respond
 				{
@@ -135,9 +140,9 @@ bool pocket_t::write16a(const void *buf, size_t nbytes)
 
 int	read_messages(FILE *fp)
 {
-	char buff[256];
-	int	len;
-	unsigned int index;
+	char buff[32];		//Temporary buffer
+	int	len;			//number of bytes in the buffer
+	int index;
 	char	s1[] = " THE POCKET by";
 	char	s2[] = "BUBBLE  SOFTWARE";
 	nummsg=0;
@@ -274,119 +279,6 @@ int read_chipdat(FILE *fp)
 	return 1;
 }
 
-bool pocket_write(tty_t tty, const void *buf, size_t nbytes)
-{
-	static	int bytes = 0;		//Byte counter
-	int i;
-	u_int8_t	in;
-
-	if(buf!=NULL)
-	{
-		for(i=0; i<nbytes; i++)
-		{
-			if(bytes<16)
-			{
-				if(bytes==0)					//If we're at a packet boundary
-					tty.write('Y');			//Start a new packet
-				tty.write(((char *)buf)[i]);			//Send the next byte
-				bytes++;							//Record that the byte was sent
-			}
-			else
-			{
-				//printf("Waiting for R\n");
-				tty.read(&in, 1);				//If at the end of a packet...
-				if(in=='R')						//...wait for the pocket to respond
-				{
-					bytes=0;							//and reset the byte counter
-					i--;	//BAD BAD BAD Well...I haven't thought of a better/clean way
-							//This is so it doesn't skip a character at packet boundaries
-				}
-				else
-					return false;
-			}
-		}
-	}
-	else
-	{
-		//If a NULL has been sent and nbytes==0 then assume the NULL was intentional
-		//	which means the packet transfer needs to be terminated. so...
-		if(nbytes==0)
-		{
-			for(;bytes<16;bytes++)		//Pad the last packet
-				tty.write(0);
-			tty.read(&in, 1);
-			if(in=='R')						//Wait for a response from the pocket
-				tty.write('N');			//and then tell it to go away
-			else
-				return false;
-		}
-	}
-	return true;
-}
-
-bool pocket_write(tty_t tty, u_int8_t buf)
-{
-	return pocket_write(tty, &buf, 1);
-}
-
-//This is function only exists because the export protocol uses different constants
-//	than the info/msg protocol. Hopefully I'll beable to get Tony to change that so
-//	this function can go away.
-bool pocket_write2(tty_t tty, const void *buf, size_t nbytes)
-{
-	static	int bytes = 0;		//Byte counter
-	int i;
-	u_int8_t	in;
-
-	if(buf!=NULL)
-	{
-		for(i=0; i<nbytes; i++)
-		{
-			if(bytes<16)
-			{
-				if(bytes==0)					//If we're at a packet boundary
-					tty.write(0x00);			//Start a new packet
-				tty.write(((char *)buf)[i]);			//Send the next byte
-				bytes++;							//Record that the byte was sent
-			}
-			else
-			{
-				//printf("Waiting for R\n");
-				tty.read(&in, 1);				//If at the end of a packet...
-				if(in=='M')						//...wait for the pocket to respond
-				{
-					bytes=0;							//and reset the byte counter
-					i--;	//BAD BAD BAD Well...I haven't thought of a better/clean way
-							//This is so it doesn't skip a character at packet boundaries
-				}
-				else
-					return false;
-			}
-		}
-	}
-	else
-	{
-		//If a NULL has been sent and nbytes==0 then assume the NULL was intentional
-		//	which means the packet transfer needs to be terminated. so...
-		if(nbytes==0)
-		{
-			for(;bytes<16;bytes++)		//Pad the last packet
-				tty.write(0);
-			tty.read(&in, 1);
-			if(in=='M')						//Wait for a response from the pocket
-				tty.write(0xFF);			//and then tell it to go away
-			else
-				return false;
-		}
-	}
-	return true;
-}
-
-bool pocket_write2(tty_t tty, u_int8_t buf)
-{
-	return pocket_write(tty, &buf, 1);
-}
-
 u_int16_t size(chipinfo chip) return s;
 {
 	int i;
@@ -395,10 +287,7 @@ u_int16_t size(chipinfo chip) return s;
 		s += strlen(chip.textline[i]) + 1;
 }
 
-#define	HIBYTE(a)	(u_int8_t)(a>>8)
-#define	LOBYTE(a)	(u_int8_t)(a&0x00FF)
-
-int send_msgdat(tty_t tty)
+int send_msgdat(pocket_t pocket)
 {
 	char	S[100];					//a string
 	int i, j, k;					//loop counters
@@ -415,99 +304,82 @@ int send_msgdat(tty_t tty)
 	for(i=0;i<nummsg;i++)								//Add string lengths
 		ci += strlen(MessageString[i])+1;
 	
-	pocket_write(tty, HIBYTE(mai));				//Send message address index (2 bytes)
-	pocket_write(tty, LOBYTE(mai));
-	pocket_write(tty, 0x0);							//Pad the addres w/ 2 bytes
-	pocket_write(tty, 0x0);
+	pocket.write16(HIBYTE(mai));				//Send message address index (2 bytes)
+	pocket.write16(LOBYTE(mai));
+	pocket.write16(0x0);							//Pad the addres w/ 2 bytes
+	pocket.write16(0x0);
 	sprintf(S,"%02X\n", numchips);				//Send the number of chips in the dataset
-	pocket_write(tty, S, 2);
+	pocket.write16(S, 2);
 
 	for(i=0;i<numchips;i++)							//Send the chip names
 	{
-		pocket_write(tty, '[');
-		pocket_write(tty, strlen(chips[i].name));	//Name length
-		pocket_write(tty, chips[i].name, strlen(chips[i].name));		//Name
-		pocket_write(tty, ']');
+		pocket.write16('[');
+		pocket.write16(strlen(chips[i].name));	//Name length
+		pocket.write16(chips[i].name, strlen(chips[i].name));		//Name
+		pocket.write16(']');
 		//Info location
-		pocket_write(tty, HIBYTE(ci+2+strlen(chips[i].name)));
-		pocket_write(tty, LOBYTE(ci+2+strlen(chips[i].name)));
+		pocket.write16(HIBYTE(ci+2+strlen(chips[i].name)));
+		pocket.write16(LOBYTE(ci+2+strlen(chips[i].name)));
 		ci += size(chips[i]);		//Start of next chipinfo
 	}
 
 	for(i=0;i<nummsg;i++)							//Send message addresses
 	{
-		hi = HIBYTE(mi);	lo = LOBYTE(mi);			//Make hi/lo bytes
-		pocket_write(tty, &hi, 1);						//Send MSB first
-		pocket_write(tty, &lo, 1);
+		pocket.write16(HIBYTE(mi));						//Send MSB first
+		pocket.write16(LOBYTE(mi));
 		mi += strlen(MessageString[i])+1;			//Start of next string
 	}
 
 	for(i=0;i<nummsg;i++)							//Send the messages
 	{
-		pocket_write(tty, MessageString[i], strlen(MessageString[i]));
-		pocket_write(tty, '^');
+		pocket.write16(MessageString[i], strlen(MessageString[i]));
+		pocket.write16('^');
 	}
 
 	for(i=0;i<numchips;i++)									//Write out the chip info
 	{
-		pocket_write(tty, '[');
-		pocket_write(tty, chips[i].name, strlen(chips[i].name));
-		pocket_write(tty, ']');
+		pocket.write16('[');
+		pocket.write16(chips[i].name, strlen(chips[i].name));
+		pocket.write16(']');
 		sprintf(S, "%2X", chips[i].rompages);				//ROM pages
-		pocket_write(tty, &S[1], 1);	pocket_write(tty, &S[0], 1);
+		pocket.write16(S[1]);	pocket.write16(S[0]);
 		sprintf(S, "%4X", chips[i].eeprom_size);			//EEPROM pages
-		pocket_write(tty, &S[3], 1);	pocket_write(tty, &S[2], 1);
-		pocket_write(tty, &S[1], 1);	pocket_write(tty, &S[0], 1);
-		pocket_write(tty, chips[i].vpp_select+48);		//VPP pin select
+		for(j=3;j>=0;j--)
+			pocket.write16(S[k]);
+		pocket.write16(chips[i].vpp_select+48);		//VPP pin select
 		switch(chips[i].eeprom_prog_delay)					//Programming delay
 		{
-			case	EEPROM_DELAY_SHORT:	pocket_write(tty, 'S');	break;
-			case	EEPROM_DELAY_LONG:	pocket_write(tty, 'L');	break;
+			case	EEPROM_DELAY_SHORT:	pocket.write16('S');	break;
+			case	EEPROM_DELAY_LONG:	pocket.write16('L');	break;
 		}
-		pocket_write(tty, chips[i].pin_count+48);				//Pin count
-		pocket_write(tty, chips[i].cp_warn ? '1' : '0');	//CP warning?
+		pocket.write16(chips[i].pin_count+48);				//Pin count
+		pocket.write16(chips[i].cp_warn ? '1' : '0');	//CP warning?
 		switch(chips[i].codetype)
 		{
-			case	CODE_INHX8M: pocket_write(tty, 'M');
-			case	CODE_INHX32: pocket_write(tty, '2');
+			case	CODE_INHX8M: pocket.write16('M');
+			case	CODE_INHX32: pocket.write16('2');
 		}
-		pocket_write(tty, chips[i].internal_prog ? '1' : '0');
-		c = chips[i].idwords+48; pocket_write(tty, &c, 1);
-		c = chips[i].fusewords+48; pocket_write(tty, &c, 1);
+		pocket.write16(chips[i].internal_prog ? '1' : '0');
+		pocket.write16(chips[i].idwords+48);
+		pocket.write16(chips[i].fusewords+48);
 		for(j=0;j<4;j++)													//Fuse masks
 		{
 			sprintf(S, "%4X", chips[i].fuse_and[j]);
-			pocket_write(tty, &S[3], 1);	pocket_write(tty, &S[2], 1);
-			pocket_write(tty, &S[1], 1);	pocket_write(tty, &S[0], 1);
+			for(k=3;k>=0;k--)
+				pocket.write16(S[k]);
 			sprintf(S, "%4X", chips[i].fuse_or[j]);
-			pocket_write(tty, &S[3], 1);	pocket_write(tty, &S[2], 1);
-			pocket_write(tty, &S[1], 1);	pocket_write(tty, &S[0], 1);
+			for(k=3;k>=0;k--)
+				pocket.write16(S[k]);
 		}
-		/*
-		for(j=0;j<chips[i].rampages;j++)
+		for(j=0;j<chips[i].num_textlines;j++)	//Raw text
 		{
-			c = '#'; pocket_write(tty, &c, 1);			//Start of line
-			c =j+48; pocket_write(tty, &c, 1);		//ram page
-			for(k=0;k<chips[i].num_aliases[j];k++)
-			{
-				sprintf(S, ",%s;", chips[i].aliases[j][k].alias);
-				pocket_write(tty, S, strlen(S));
-				sprintf(S, "%2X", chips[i].aliases[j][k].address);
-				pocket_write(tty, &S[1], 1);
-				pocket_write(tty, &S[0], 1);
-			}
-			c = '^'; pocket_write(tty, &c, 1);			//End line
-		}*/
-		for(j=0;j<chips[i].num_textlines;j++)
-		{
-			//printf("%s: %s\n", 
-			pocket_write(tty, chips[i].textline[j], strlen(chips[i].textline[j]));
-			c = '^'; pocket_write(tty, &c, 1);
+			pocket.write16(chips[i].textline[j], strlen(chips[i].textline[j]));
+			pocket.write16('^');
 		}
 	}
 	sprintf(S, "!!!end^");
-	pocket_write(tty, S, strlen(S));
-	pocket_write(tty, NULL, 0);		//Close out the packet stream
+	pocket.write16(S, strlen(S));	//Signal EOF to Pocket
+	pocket.write16(NULL, 0);		//Close out the packet stream
 }
 
 struct	memdata
@@ -517,19 +389,128 @@ struct	memdata
 	u_int8_t	fuse[2][4];
 };
 
+
+u_int16_t swap16(u_int16_t in)
+{
+	return ((in & 0x00FF)<<8) | ((in & 0xFF00)>>8);
+}
+
+//Swaps lo and hi such that lo becomes the new MSB and hi becomes the new LSB
+u_int16_t swap8s(u_int8_t lo, u_int8_t hi)
+{
+	return (((u_int16_t)lo)&0x00FF)<<8 | (((u_int16_t)hi) & 0x00FF);
+}
+
 struct file_header
 {
-	char	name[12];
-	u_int8_t	id[4];
-	u_int8_t	fuse[8];
-	u_int8_t	rom;
+	char			name[13];
+	u_int8_t		id[4];
+	u_int16_t	fuse[4];
+	u_int8_t		rom;
 	u_int16_t	eeprom;
-	char	type;
+	char			format;
 };
 
-void handle_export(tty_t tty, const char *path)
+//Import a hex file from the Pocket and save it to path
+void pocket_t::importfile(const char *path)
 {
-	int i, n = 0;
+	u_int8_t	rompages;
+	int	romsize;
+	u_int16_t eepromsize;
+	u_int8_t	*data;
+	u_int8_t	a, b;
+	int total, r, n;
+	file_header	hdr;
+	char	file[256];
+	
+	write(POC_ANYCHAR);			//Send Ack
+	read(&rompages);				//Get ROM pages (1 page = 256 words)
+	romsize = 256*rompages;		//Convert to ROM words
+	read(&a);						//High byte of EEPROM size
+	read(&b);						//Low byte of EEPROM size
+	eepromsize = (a<<8) | b;	//Put it all together
+	total = 32 + 2*romsize + eepromsize;
+	data = new u_int8_t[total];
+/*	
+	printf("%s: ROM pages: %d\n", __FUNCTION__, rompages);
+	printf("%s: ROM size: %d words\n", __FUNCTION__, romsize);
+	printf("%s: EEPROM size: %d\n", __FUNCTION__, eepromsize);
+	printf("%s: total size: %d\n", __FUNCTION__, total);
+*/
+	n=0;
+	r=0;
+	write('M');				//Initial data request
+	while(r<total)
+	{
+		if(n>=16)
+		{
+			write('M');		//Request more data
+			n=0;
+		}
+		n+=read(&(data[r]),16-n);		//Read 16 bytes and store them
+		r+=n;
+	}
+	write('N');						//No more data
+	read(&a);						//Pocket wants the filename
+	write('N');						//Tell Pocket to bugger off
+
+	printf("%s: Received %d bytes\n", __FUNCTION__, r);
+	
+	//Time to decipher what was sent and save it
+
+	//The data starts with the file header
+	memcpy(hdr.name, data, 12);	//Filename
+	hdr.name[12] = 0x00;				//Ensure that its terminated
+	hdr.id[0] = data[13];			//ID locations
+	hdr.id[1] = data[12];
+	hdr.id[2] = data[15];
+	hdr.id[3] = data[14];
+	hdr.fuse[0] = (data[16]<<8) | data[17];	//Configuration fuses
+	hdr.fuse[1] = (data[18]<<8) | data[19];
+	hdr.fuse[2] = (data[20]<<8) | data[21];
+	hdr.fuse[3] = (data[22]<<8) | data[23];
+
+	hdr.rom = data[26];				//ROM pages
+	hdr.eeprom = (data[27]<<8) | data[28];			//EEPROM size in bytes
+	//hdr.format = (data[29]=='M') ? HEX_FORMAT_INHX8M : HEX_FORMAT_INHX32;
+	if(data[29]=='M')
+	{
+		hdr.format = HEX_FORMAT_INHX8M;
+		printf("INHX8M\n");
+	}
+	else if(data[29]=='2')
+	{
+		hdr.format = HEX_FORMAT_INHX32;
+		printf("INHX32\n");
+	}
+	else
+		hdr.format = data[29];
+
+	printf("Filename: %s\n", hdr.name);
+	printf("ID: 0x%X 0x%X 0x%X 0x%X\n", hdr.id[0], hdr.id[1], hdr.id[2], hdr.id[3]);
+	printf("Fuse: 0x%X 0x%X 0x%X 0x%X\n", hdr.fuse[0], hdr.fuse[1], hdr.fuse[2], hdr.fuse[3]);
+	printf("ROM pages: %d\n", hdr.rom);
+	printf("EEPROM size: %d\n", hdr.eeprom);
+	printf("Format: %d\n", hdr.format);
+	
+	if(path==NULL)
+	{
+		//Ask the user for a path/filename
+		printf("Filename (./%s): ", hdr.name);
+		n=0;
+		scanf("%[^\n]%n", file, &n);
+		if(n==0)
+			strcpy(file, hdr.name);
+		//write a hex file
+		printf("Saved ./%s\n", hdr.name);
+
+	}
+	
+}
+
+void pocket_t::exportfile(const char *path)
+{
+/*	int i, n = 0;
 	char c;
 	memdata	memdat;
 	char	buff[100];
@@ -540,19 +521,18 @@ void handle_export(tty_t tty, const char *path)
 	strcpy(fh.name, "file.hex");
 	
 	
-	tty.write('Y');			//Tell the Pocket all is good
-	tty.read(buff, 19);		//Get the ROM/EEPROM/Fuse data
+	write('Y');			//Tell the Pocket all is good
+	read(buff, 19);		//Get the ROM/EEPROM/Fuse data
 	memdat.rom = buff[0];
-	memdat.eeprom = ((u_int16_t)buff[1])<<8 + (0x00FF & (u_int16_t)buff[2]);
-
+	memdat.eeprom = ((u_int16_t)buff[1])<<8 + (0x00FF & (u_int16_t)buff[2]);	//Swap bytes
 	for(i=0;i<4;i++)
 	{
-		memdat.fuse[0][i] = ((u_int16_t)(buff[i*4+3]))<<8 + (0x00FF & (u_int16_t)(buff[i*4+4]));
-		memdat.fuse[1][i] = ((u_int16_t)(buff[i*4+5]))<<8 + (0x00FF & (u_int16_t)(buff[i*4+6]));
+		memdat.fuse[0][i] = ((u_int16_t)(buff[i*4+3]))<<8 + (0x00FF & (u_int16_t)(buff[i*4+4]));	//Swap bytes
+		memdat.fuse[1][i] = ((u_int16_t)(buff[i*4+5]))<<8 + (0x00FF & (u_int16_t)(buff[i*4+6]));	//Swap bytes
 	}
 	
-	tty.write('Y');
-	tty.read(&c, 1);
+	write('Y');
+	read(&c);
 	if(c=='F')
 	{
 		//Send file header
@@ -574,7 +554,7 @@ void handle_export(tty_t tty, const char *path)
 		tty.write(fh.type ? 'M' : '2');
 		
 		//send_file(tty, path);	//Send file
-		pocket_write2(tty, ,);
+		//pocket_write2(tty, ,);
 		tty.read(&c, 1);
 		if(c=='F')
 		{
@@ -582,5 +562,392 @@ void handle_export(tty_t tty, const char *path)
 			tty.write(POC_ANYCHAR);		//Send 1 byte
 		}
 	}
-		
+*/		
+}
+
+//Starting at menu 1, go to menu 2
+bool	pocket_t::enter_ppro()
+{
+	write(0x00);			//Enter programmer mode (go to menu 2)
+	write(prog_speed);	//Send programming speed (fast)
+	if(read()=='P')		//Make sure it ack'd properly
+	{
+		//printf("Got P\n");
+		menu_num = 2;			//Record state (PWaitCom)
+		return true;
+	}
+	else
+		return false;
+	
+}
+
+u_int8_t	pocket_t::leave_ppro()
+{
+	write(PP_QUIT);			//Always leave the programmer in menu 1
+	menu_num = 1;
+	return read();				//Pocket should reply with 'Q'
+}
+
+//Handle PocketPro mode starting from the first menu
+//	***FIXME***	Hardcoded for 16F877
+//	***FIXME***	Hardcoded for Vpp1
+void	pocket_t::ppro(char command, const char *path)
+{
+	u_int8_t c, c1, FuseHi, FuseLo;
+	u_int16_t id, fuse, rom;
+	unsigned int i, j, k, ch;
+	dblock	*db;
+	hex_data	hex;
+	
+	//printf("%s\n", __FUNCTION__);
+	if(enter_ppro())
+	{
+		pp_setvpp(1);		//Set Vpp to Vpp1
+
+		switch(command)
+		{
+			case PP_PROGRAM: 
+				if(!hex.load(path))	//Load the hex file
+				{
+					printf("Couldn't load %s\n", path);
+					return;
+				}
+				
+				printf("Programming..."); 
+				fflush(stdout);
+				pp_writeprogram(&hex, 0x2000);
+				
+//				printf("Waiting for pocket...\n");
+//				fflush(stdout);
+				sleep(1);		//wait 1 sec for the pocket to reset itself
+//				printf("awake\n");
+				write(0x01);
+				c = read();		//Should be a P
+				c = read();		//Should be a P
+				write(POC_ANYCHAR);
+				enter_ppro();
+
+				//Program EEPROM
+				printf("Done\n");
+				break;
+			case PP_FUSES:
+				if(!hex.load(path))	//Load the hex file
+				{
+					printf("Couldn't load %s\n", path);
+					return;
+				}
+				
+ 				//Program fuses
+ 				printf("Programming Fuses and ID's...\n");
+ 				fflush(stdout);
+				write(PP_WRITE_EFUSE);
+				//Find the dblock with fuse info in it
+				for(i=0; i<hex.num_blocks; i++)
+				{
+					if(hex.blocks[i].address >= 0x2007)
+					{
+						if(hex.blocks[i].address > 0x2007)	//One block too far?
+							i--;										//	Step back
+//						printf("Fuse @ %d\n", i);
+						if(hex.blocks[i].address <= 0x2007)	//Fuse is in the middle of the block?
+						{
+							FuseHi = HIBYTE(hex.blocks[i].data[0x2007 - hex.blocks[i].address]);
+							FuseLo = LOBYTE(hex.blocks[i].data[0x2007 - hex.blocks[i].address]);
+							printf("Fuse: %02X%02X\n", FuseHi, FuseLo);
+						}
+						break;		//Jump out of the FOR loop
+					}
+				}
+				write(FuseHi);	//Send hibyte of fuse word
+				write(FuseLo);	//Send lobyte of fuse word
+				write(0xF1);	//Send bogus ID bytes
+				write(0xF2);
+				c = read();
+				if(c!='Y');
+					printf("%c\n", c);
+			
+				break;
+			case PP_EEPROM:
+				if(!hex.load(path))	//Load the hex file
+				{
+					printf("Couldn't load %s\n", path);
+					return;
+				}
+				i=0;
+				while((i<hex.num_blocks) && (hex.blocks[i].address < 0x2100))
+					i++;
+				if(i==hex.num_blocks)	//Check for a valid block number
+				{
+					printf("No EEPROM data\n");
+					break;
+				}
+				if(hex.blocks[i].address > 0x2100)	//One block too far? 
+					i--;										//	go back one
+				printf("Programming EEPROM...\n");
+				fflush(stdout);
+				write(PP_WRITE_EEPROM);
+				for(j=0;j<256; j++)
+				{
+					k = j%8;
+					if(k==0)
+					{
+						if(ch=read()=='M')
+						{
+							write('Y');		//Tell Pocket there's more data
+						}
+						else
+						{
+							ch = read();
+							printf("Error at %d\n", ch);
+							break;
+						}
+					}
+					//If the end of a block has been reached, go to the next block
+					if((0x2100 + j) > (hex.blocks[i].address + hex.blocks[i].length - 1))
+						i++;
+					if(i>=hex.num_blocks)	//If no more blocks...
+					{
+						for(;k<8;k++)	//Finish the packet
+							write(0xFF);
+						j=500;	//Force the j loop to terminate
+						break;	//break out of the k loop
+					}
+					write(hex.blocks[i].data[j+0x2100-hex.blocks[i].address]);
+				}
+				if(j>=256)
+					write('N');		//No more data
+				printf("Finished EEPROM\n");
+				return;
+				break;
+			case PP_BLANK: 
+				printf("Erasing...");
+				fflush(stdout);
+				ch = pp_bulkerase('1', 0x2000);			//Erase the chip
+				printf("%c\n", ch);						//Display the result ('Y')
+				break;
+			case PP_VERIFY: 
+				printf("Verify\n"); 
+				//Read the pic
+				//Compare it against path
+				//Display the results
+				break;
+			case PP_READ:
+				printf("Saving %s\n", path);
+				pp_readprogram(&hex, 0x2000);			//Read the program memory
+				pp_readfuse(&id, &fuse);				//Read the configuration word
+				db = hex.add_block(0x2000, 1);		//Add it to the hex file
+				db->data[0] = id;
+				db = hex.add_block(0x2007, 1);		//Add it to the hex file
+				db->data[0] = fuse;
+				pp_readeeprom(&hex, 256);				//Read the EEPROM and add it to the hex file
+				hex.write(path);							//Save the file to disk
+				break;
+			case PP_BLANKCHECK: 
+				printf("Blank Checking..."); 
+				fflush(stdout);
+				switch(ch=pp_blankcheck(0x2000))
+				{
+					case	'R': 
+						printf("Program Memory isn't blank\n");
+						break;
+					case	'I':
+						printf("ID location isn't blank\n");
+						break;
+					case	'F':
+						printf("Configuration word isn't blank\n");
+						break;
+					default:
+						printf("%d\n", ch);
+						break;
+				}
+				break;
+		}
+		//printf("%c\n", leave_ppro());
+		leave_ppro();
+	}	
+	else
+		printf("No P\n");
+}
+
+void pocket_t::pp_writeprogram(hex_data *hex, unsigned numwords)
+{
+	unsigned int i, j;
+	unsigned char c;
+	
+	write(PP_PROGVERE);		//Program command
+	//Program the program memory
+	for(i=0;i<hex->num_blocks;i++)
+	{
+		if(hex->blocks[i].address < numwords)
+		{
+			//Check for gaps between blocks
+			if( (i>0) && (hex->blocks[i].address != (hex->blocks[i-1].address+hex->blocks[i-1].length)))
+			{
+				//Fill the gap with NOP's
+				for(j=0; j< (hex->blocks[i].address - (hex->blocks[i-1].address+hex->blocks[i-1].length)); j++)
+				{
+					if(read()=='M')
+					{
+						write(0x3F);
+						write(0xFF);
+					}
+				}
+			}
+			for(j=0; j<hex->blocks[i].length; j++)
+			{
+				switch(c=read())
+				{
+					case 'M':
+						//printf("Got M\n");
+						write((hex->blocks[i].data[j] & 0xFF00)>>8);	//Send high byte
+						write(hex->blocks[i].data[j] & 0x00FF);		//Send low byte
+						//printf("Sent: 0x%04X\n", hex->blocks[i].data[j]);
+						break;
+					case 'F':
+						printf("Programming Failure @ 0x");
+						fflush(stdout);
+						printf("%02X", read());
+						printf("%02X\n", read());
+						return;
+						break;
+				}
+			}
+		}
+	}
+	if(read()=='M')
+	{
+		write(0xFF);
+		write(0x00);
+	}
+}
+
+void pocket_t::pp_readprogram(hex_data *hex, unsigned numwords)
+{
+	unsigned	numblocks;
+	u_int16_t i, j;
+	dblock *db;
+	numblocks = numwords/8;				//Find required number of data blocks
+	while(numwords > numblocks*8)		//Check for incomplete blocks
+		numblocks++;						//	inc number of block if necessary
+	//printf("Numwords %d Numblocks %d\n", numwords, numblocks);
+
+	for(i=0; i<numblocks; i++)			//For each block
+		pp_read8words(hex->add_block(i*8, 8));	//Read 8 words and store them
+}
+
+//Set Vpp pins
+//	1: Vpp1
+//	2: Vpp2
+u_int8_t	pocket_t::pp_setvpp(char vpp)
+{
+	write(PP_SET_VPP);
+	switch(vpp)
+	{
+		case 1: write('1'); break;
+		case 2: write('2'); break;
+	}
+	return read();		//Pocket should return 'Y'
+}
+
+void	pocket_t::pp_read8words(dblock *db)
+{
+	int i;
+
+	if(db->data == NULL)			//If the data memory hasn't been allocated yet
+	{
+		db->data = new u_int16_t[8];	//...allocate it
+		db->length = 8;
+	}
+	else if(db->length<8)	//If it has, but is too short...
+	{
+		db->data = (u_int16_t *)realloc(db->data, sizeof(u_int16_t)*8);	//...make it longer
+		db->length = 8;
+	}
+	
+	write(PP_READ_8_WORDS);		//Send read command
+	
+	for(i=0; i<8; i++)
+	{
+		db->data[i] = (read()<<8) | read();
+	}	
+}
+
+void pocket_t::pp_readeeprom(hex_data *hex, unsigned numbytes)
+{
+	unsigned	numblocks;
+	unsigned i, j;
+	
+	numblocks = numbytes/8;				//Find required number of data blocks
+	while(numbytes > numblocks*8)		//Check for incomplete blocks
+		numblocks++;						//	inc number of block if necessary
+	//printf("Numbytes %d Numblocks %d\n", numbytes, numblocks);
+
+	for(i=0; i<numblocks; i++)			//For each block
+		pp_read8words(hex->add_block(i*8 + 0x2100, 8));	//Read 8 words and store them
+}
+
+void	pocket_t::pp_read8eeprom(dblock *db)
+{
+	int i;
+
+	if(db->data == NULL)			//If the data memory hasn't been allocated yet
+	{
+		db->data = new u_int16_t[8];	//...allocate it
+		db->length = 8;
+	}
+	else if(db->length<8)	//If it has, but is too short...
+	{
+		db->data = (u_int16_t *)realloc(db->data, sizeof(u_int16_t)*8);	//...make it longer
+		db->length = 8;
+	}
+	
+	write(PP_READ_8_EEPROM);		//Send read command
+	
+	for(i=0; i<8; i++)
+	{
+		db->data[i] = read();
+	}	
+}
+
+//Read the Fuse and ID words when in PocketPro mode
+//	Assumes menu 2 (i.e. at PWaitCom)
+//	Leaves Pocket at menu 2
+void	pocket_t::pp_readfuse(u_int16_t *id, u_int16_t *fuse)
+{
+/*	if(menu_num!=2)		//If not already in menu 2
+		if(enter_ppro())		//Reenter ppro mode
+		{
+			write(PP_READ_FUSE);					//Send read id/fuse command
+			*id = (read()<<8) | read();		//ID word (MSB first)
+			*fuse = (read()<<8) | read();		//Fuse word (MSB first)
+		}
+	else						//Else, continue
+	{*/
+		write(PP_READ_FUSE);					//Send read id/fuse command
+		*id = (read()<<8) | read();		//ID word (MSB first)
+		*fuse = (read()<<8) | read();		//Fuse word (MSB first)
+	//}
+}
+
+//Blank check the PIC
+//	Assumes menu 2 (i.e. at PWaitCom)
+//	Leaves Pocket at menu 2
+u_int8_t	pocket_t::pp_blankcheck(u_int16_t romsize)
+{
+	write(PP_BLANK_CHECK);							//Send blank check command
+	write((u_int8_t)((romsize & 0xFF00)>>8));	//MSB of ROM size
+	write((u_int8_t)(romsize & 0x00FF));		//LSB of ROM size
+	return read();
+}
+
+//Blank the PIC
+//	Assumes menu 2 (i.e. at PWaitCom)
+//	Leaves Pocket at menu 2
+u_int8_t	pocket_t::pp_bulkerase(u_int8_t vpp, u_int16_t romsize)
+{
+	write(PP_ERASE);									//Send erase command
+	write(vpp);											//Select Vpp pins
+	write((u_int8_t)((romsize && 0xF0)>>8));	//MSB of ROM size
+	write((u_int8_t)(romsize && 0x0F));			//LSB of ROM size
+	return read();
 }

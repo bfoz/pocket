@@ -11,32 +11,50 @@
 
 #include "tty.h"
 
+//Read nbytes from the port and put them in buf
 ssize_t tty_t::read(void *buf, size_t nbytes)
 {
 	return ::read(fd, buf, nbytes);
 }
+/*
+//Read a single byte from the port
+ssize_t tty_t::read(unsigned char *c)
+{
+	return ::read(fd, c, 1);
+}*/
 
-ssize_t tty_t::read(char *c)
+//Read a single byte from the port
+ssize_t tty_t::read(u_int8_t *c)
 {
 	return ::read(fd, c, 1);
 }
 
-ssize_t tty_t::write(const void *buf, size_t nbytes)
+//Read a single byte from the port
+u_int8_t tty_t::read()
+{
+	u_int8_t c;
+	::read(fd, &c, 1);
+	return c;
+}
+
+ssize_t tty_t::write(const void *buf, size_t nbytes) return s;
 {
 #ifdef TTY_DEBUG
 	::write(fd1, buf, nbytes);
 #endif
-	return ::write(fd, buf, nbytes);
+	s = ::write(fd, buf, nbytes);
+	tcdrain(fd);
 }
 
-ssize_t tty_t::write(char buf)
+ssize_t tty_t::write(char buf) return s;
 {
 #ifdef TTY_DEBUG
 	if(buf!='Y')
 		::write(fd1, &buf, 1);
 	printf("%s: %c\n", __FUNCTION__, buf);
 #endif
-	return ::write(fd, &buf, 1);
+	s = ::write(fd, &buf, 1);
+	tcdrain(fd);
 }
 
 int tty_t::open(const char *path, int flags)
@@ -74,7 +92,7 @@ int tty_t::rawmode()
 
 int tty_t::reset()
 {
-	if( tcsetattr(fd, TCSAFLUSH, &save_termios) < 0)
+	if( tcsetattr(fd, TCSAFLUSH | TCSANOW, &save_termios) < 0)
 		return 0;
 	return 1;
 }

@@ -9203,14 +9203,16 @@ iLoop	clrf PCLATH
 ; PROGRAMMER MODE - WAITING FOR A COMMAND FROM THE PC
 ; ---------------------------------------------------
 ;
-LWaitCom	clrf PCLATH	
+LWaitCom	
+	clrf PCLATH	
 	movlw 56h			; run PocketPro
-          call MessProc1
+	call MessProc1
 	movlw 12h
 	call MessProc2		; Press any key
 	call AnyKey
 
-PINGmp	movlw 'P'			; announce PocketPro
+PINGmp	
+	movlw 'P'			; announce PocketPro
 	movwf TXREG
 	movwf TXREG
 
@@ -9218,33 +9220,36 @@ PINGmp	movlw 'P'			; announce PocketPro
 	call Receive		; wait for ack - 1 second
 
 	movlw 30h			; Pocket Pro mode
-          call MessProc1
+	call MessProc1
 	ThisPage
 
-LWaitCm	call ReceiveM
-	xorlw 0h			; PgmCommand
+LWaitCm	
+	call ReceiveM		;Wait for the PC to send a byte
+	xorlw 0h				
 	btfsc STATUS,Z
-	goto PgmrMode
-
-	movf RxHold,W
-	xorlw 1h
+	goto PgmrMode		;	0: goto PgmrMode	(programmer mode)
+							;	1: goto PINGmp	(reannounce pocketpro)		
+	movf RxHold,W		;	default:	wait for another byte
+	xorlw 1h	
 	btfss STATUS,Z
-	goto LWaitCm
-	goto PINGmp		; pocketpro restarted
+	goto LWaitCm		; wait for another byte
+	goto PINGmp			; reannounce pocketpro 
 
-PgmrMode  bcf Flag2,TimeLS		; now = short delay
+PgmrMode  
+	bcf Flag2,TimeLS	; now = short delay
 	call ReceiveM		; get prog speed for 16F87x devices.
 	xorlw '0'
 	btfss STATUS,Z
-	bsf Flag2,TimeLS		; now = long delay	
+	bsf Flag2,TimeLS	; now = long delay	
 
 	movlw 'P'			; confirm Programmer command
-          movwf TXREG
-	clrf Flag5		; initialise Flag registers
+	movwf TXREG
+	clrf Flag5			; initialise Flag registers
 	clrf Flag3
-	clrf PORTB		; make sure RB6/7 = lo
+	clrf PORTB			; make sure RB6/7 = lo
 
-PWaitCom	call ReceiveM		; wait and read from RS232
+PWaitCom	
+	call ReceiveM		; wait and read from RS232
 	ThisPage
 	movf RxHold,W
 	andlw 0Fh
@@ -9252,29 +9257,33 @@ PWaitCom	call ReceiveM		; wait and read from RS232
 	goto PWaitCom		; 0 = PgmCommand = ignore it
 	goto DoQuitX		; 1 = VppOnOff = error
 	goto SetVVolt		; 2 = VccOnOff
-          goto ProgVer		; 3 = ProgROM
-          goto ProgVerE		; 4 = ProgEROM
+	goto ProgVer		; 3 = ProgROM
+	goto ProgVerE		; 4 = ProgEROM
 	goto ReadcROM		; 5 = ReadROM
-          goto DoFuse		; 6 = ProgFuse
-          goto DoFuseE		; 7 = ProgEFuse
-          goto RdFuse		; 8 = ReadFuse
-          goto ReadEEm		; 9 = ReadEMem
-          goto Ewrite		; 10 = WriteEMem
-          goto ErCheck		; 11 = IsErased
-          goto EraseAll		; 12 = EraseAll
-          goto QuitU		; 13 = QuitNoRes
-          goto DoQuit		; 14 = QuitProg
+	goto DoFuse			; 6 = ProgFuse
+	goto DoFuseE		; 7 = ProgEFuse
+	goto RdFuse			; 8 = ReadFuse
+	goto ReadEEm		; 9 = ReadEMem
+	goto Ewrite			; 10 = WriteEMem
+	goto ErCheck		; 11 = IsErased
+ 	goto EraseAll		; 12 = EraseAll
+  	goto QuitU			; 13 = QuitNoRes
+  	goto DoQuit			; 14 = QuitProg
 ; error 15
 ;
 ; ----------------------------
 ; PC IS CLOSING COMMUNICATIONS
 ; ----------------------------
 ;
-DoQuitX   movlw 'X'			; send back serial character error
-          goto sendQD
-DoQuit    movlw 'Q'			; send back quit comms
-sendQD    movwf TXREG
-QuitU     movlw High(VoltsOFF)
+DoQuitX   
+	movlw 'X'			; send back serial character error
+	goto sendQD
+DoQuit
+	movlw 'Q'			; send back quit comms
+sendQD
+	movwf TXREG
+QuitU     
+	movlw High(VoltsOFF)
 	movwf PCLATH
 	call VoltsOFF
 	call Dl12Pg1
@@ -9282,13 +9291,14 @@ QuitU     movlw High(VoltsOFF)
 	movf RCREG,W		; flush receive buffer
 	movf RCREG,W
 	movf RCREG,W
-          goto LWaitCm		; wait for initial command
+	goto LWaitCm		; wait for initial command
 ;
 ; ---------------
 ; TURN OFF/ON VCC
 ; ---------------
 ;
-SetVVolt	call ReceiveM
+SetVVolt	
+	call ReceiveM
 	movwf VPPtype
 	movlw High(VoltsON5)
 	movwf PCLATH
@@ -9322,18 +9332,19 @@ InProgV   clrf ProgAddH       ; initialise current program address
 ; GET 2 BYTES OF DATA
 ; IF = DataH = FFh then end of data
 ;
-ProgMore	clrf PCLATH
+ProgMore	
+	clrf PCLATH
 	call Receive	; data H
-          movwf Data1H
+	movwf Data1H
 	call Receive	; data L
-          movwf Data1L
+	movwf Data1L
 	movlw High($)
 	movwf PCLATH
 
 	movf Data1H,W
 	xorlw 0xFF
-          btfsc STATUS,Z
-          goto QuitU          ; no more data
+	btfsc STATUS,Z
+	goto QuitU          ; no more data
 
 	movlw 'M'		; request more data
 	movwf TXREG
@@ -9345,14 +9356,14 @@ ProgMore	clrf PCLATH
 
 	movlw High(Command)
 	movwf PCLATH
-          movlw b'00000110'   ; Increment Address command = 000110
-          call Command        ; send it 
+	movlw b'00000110'   ; Increment Address command = 000110
+	call Command        ; send it 
 	ThisPage
 
-          incf ProgAddL
-          btfsc STATUS,Z
-          incf ProgAddH
-          goto ProgMore       ; prog next location
+	incf ProgAddL
+	btfsc STATUS,Z
+	incf ProgAddH
+	goto ProgMore       ; prog next location
 ;
 ; PROGRAMMING FAILED
 ; Send back programming failed response with current address
@@ -9381,25 +9392,27 @@ ProgNLoc  movf Data1H,w
           btfsc STATUS,Z
           retlw 0xFF	; data = 3FFF - ignore - OK
 
-DoProg    clrf ProCycs        ; reset programming cycles counter
-ProgLoop	movlw High(ProgLoc)
+DoProg    
+	clrf ProCycs        ; reset programming cycles counter
+ProgLoop	
+	movlw High(ProgLoc)
 	movwf PCLATH
 	call ProgLoc        ; program new data
 	incf ProCycs        ; increment programming count
 ;
 ; NOW VERIFY IT
 ;          
-          call ReadROM        ; read back data
+	call ReadROM        ; read back data
 	ThisPage
 
-          movf ROMTmpH,w      ; set during ReadROM
-          xorwf Data1H,w
-          btfss STATUS,Z     
-          goto NoVerify
+	movf ROMTmpH,w      ; set during ReadROM
+	xorwf Data1H,w
+	btfss STATUS,Z     
+	goto NoVerify
 
-          movf ROMTmpL,w      ; set during ReadROM
-          xorwf Data1L,w
-          btfsc STATUS,Z
+	movf ROMTmpL,w      ; set during ReadROM
+	xorwf Data1L,w
+	btfsc STATUS,Z
 	goto IsVerify
 
 NoVerify  btfsc Flag3,Etype    ; (7) test if ROM or EEPROM type
@@ -9474,25 +9487,27 @@ IncAddrR  movlw High(Command)
 ; ROM ERASE CHECK
 ; ---------------
 ;
-ErCheck   clrf ProgAddH		; clear address counters
-          clrf ProgAddL
+ErCheck   
+	clrf ProgAddH		; clear address counters
+	clrf ProgAddL
 
-          call ReceiveM		; get ROM count
-          movwf RmSizeH
-          call ReceiveM
-          movwf RmSizeL
+	call ReceiveM		; get ROM count
+	movwf RmSizeH
+	call ReceiveM
+	movwf RmSizeL
 
-compLP    movlw High(ReadROM)
+compLP    
+	movlw High(ReadROM)
 	movwf PCLATH
 	call ReadROM
 	ThisPage
 
-          movf ROMTmpH,W		; if = 3FFF then blank
-          xorlw 3fh
-          btfss STATUS,Z
-          goto NotBlnkR		; ROM not blank
+	movf ROMTmpH,W		; if = 3FFF then blank
+	xorlw 3fh
+	btfss STATUS,Z
+	goto NotBlnkR		; ROM not blank
 
-          movf ROMTmpL,W
+	movf ROMTmpL,W
           xorlw 0xFF
           btfss STATUS,Z
           goto NotBlnkR		; ROM not blank
@@ -9547,7 +9562,7 @@ VoltOff   movwf TXREG
 	movwf PCLATH
 	call VoltsOFF
 	ThisPage
-          goto PWaitCom		; finished
+	goto PWaitCom		; finished
 ;
 ; ---------
 ; READ FUSE
@@ -9556,7 +9571,7 @@ VoltOff   movwf TXREG
 RdFuse    movlw High(ReadID)
 	movwf PCLATH
 	call ReadID		; -> Data2H/L PIC address = 2007 on return
-          call ReadROM        	; read fuse
+	call ReadROM        	; read fuse
 	ThisPage
 
 	movf Data2H,W		; ID
@@ -9727,55 +9742,58 @@ VerEr     movlw 'N'
 ; READ DATA FROM EEPROM DATA MEMORY
 ; ---------------------------------
 ;
-ReadEEm   movlw 8h
-          movwf ACount
+ReadEEm   
+	movlw 8h
+	movwf ACount
 
-ContEe    movlw High(Command)
+ContEe
+	movlw High(Command)
 	movwf PCLATH
 	movlw b'00000101'		; Read EEPROM Data Command
-          call Command		; send it
+	call Command		; send it
 	ThisPage
 
 	bcf PORTC,HiZ		; data out pin = HiZ
 	call ClkDelayM
 
-          movlw d'16'		; 16 EEPROM data bits to read
-          movwf ICount
+	movlw d'16'			; 16 EEPROM data bits to read
+	movwf ICount
 
-ReadEpm   bsf PORTB,Clk		; (6) PIC clock = Logic 1 gets data from PIC
-          call ClkDelayM
+ReadEpm
+	bsf PORTB,Clk		; (6) PIC clock = Logic 1 gets data from PIC
+	call ClkDelayM
 
-          bcf PORTB,Clk		; (6) Clock bit = Logic 0
-          call ClkDelayM
+	bcf PORTB,Clk		; (6) Clock bit = Logic 0
+	call ClkDelayM
 
-          bcf STATUS,C		; set carry bit = incoming data bit
-          btfss PORTB,DataR		; (4) read data bit = inverted
-          bsf STATUS,C
+	bcf STATUS,C		; set carry bit = incoming data bit
+	btfss PORTB,DataR		; (4) read data bit = inverted
+	bsf STATUS,C
 
-          rrf ROMTmpH		; shift carry into data regs
-          rrf ROMTmpL
+	rrf ROMTmpH		; shift carry into data regs
+	rrf ROMTmpL
 
-          decfsz ICount		; do until all bits are sent
-          goto ReadEpm
+	decfsz ICount		; do until all bits are sent
+	goto ReadEpm
 
-          bcf STATUS,C		; shift 14 bit data across to compensate for
-          rrf ROMTmpH		; the start bit that was read from the PIC
-          rrf ROMTmpL
+	bcf STATUS,C		; shift 14 bit data across to compensate for
+	rrf ROMTmpH		; the start bit that was read from the PIC
+	rrf ROMTmpL
 
 	bsf PORTC,HiZ		; data out pin = out
 	call ClkDelayM
 
-          movf ROMTmpL,W
-          btfsc Flag5,NAInc		; (6) no increment if = 1
-          return
+	movf ROMTmpL,W
+	btfsc Flag5,NAInc		; (6) no increment if = 1
+	return
 
 	movwf TXREG
-          call IncAddrR		; increment address
-          call TransWt4		; wait for data to be sent
+	call IncAddrR		; increment address
+	call TransWt4		; wait for data to be sent
 
-          decfsz ACount
-          goto ContEe
-          goto PWaitCom		; wait for new PC command
+	decfsz ACount
+	goto ContEe
+	goto PWaitCom		; wait for new PC command
 ;
 ; --------------------------------------
 ; SMALL DELAY FOR CLOCKING DATA INTO PIC

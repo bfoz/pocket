@@ -13,6 +13,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "tty.h"
+#include "intelhex.h"
 
 //Constants for the chipinfo structure
 #define	VPP_PIN1					0
@@ -30,6 +31,30 @@
 #define	LO_MESSAGE_INDEX	0x02
 #define	HI_MESSAGE_INDEX	0xFF
 #define	NUM_MESSAGES	(HI_MESSAGE_INDEX - LO_MESSAGE_INDEX)
+
+//PocketPro Commands
+#define	PP_SET_VPP				0x02
+#define	PP_PROGVER				0x03
+#define	PP_PROGVERE				0x04
+#define	PP_READ_8_WORDS		0x05
+#define	PP_WRITE_FUSE			0x06
+#define	PP_WRITE_EFUSE			0x07
+#define	PP_READ_FUSE			0x08
+#define	PP_READ_8_EEPROM		0x09
+#define	PP_WRITE_EEPROM		0x0A
+#define	PP_BLANK_CHECK			0x0B
+#define	PP_ERASE					0x0C
+#define	PP_QUIT					0x0E
+
+//Higher level PocketPro commands
+//These are issued by the user
+#define	PP_PROGRAM		0x01		//Program a hex file
+#define	PP_BLANK			0x02		//Blank the chip
+#define	PP_VERIFY		0x03		//Verify the contents of the chip against a file
+#define	PP_READ			0x04		//Dump the chip to a file
+#define	PP_BLANKCHECK	0x05		//See if the chip is blank
+#define	PP_FUSES			0x06		//Write the fuse and id words
+#define	PP_EEPROM		0x07		//Write the EEPROM data
 
 //Data structures for handling the chip and message data
 
@@ -78,12 +103,28 @@ struct pocket_t : public tty_t
 	int	nummsg;
 	chipinfo	*chips;
 	int	numchips;
-
+	char	menu_num;			//Which ppro menu is the Pocket in?
+	u_int8_t	prog_speed;		//Programming speed to ppro mode '0'=fast, '1'=slow
+	
 	pocket_t();
-	bool write16(const void *, size_t);
-	bool write16(u_int8_t);
-	bool write16a(const void *, size_t);	//Silly export routine uses different protocol
-	bool write16a(u_int8_t);
+	bool	write16(const void *, size_t);	//Write to pocket while handling 16 byte boundaries
+	bool	write16(u_int8_t);
+	bool	write16a(const void *, size_t);	//Silly export routine uses different protocol
+	bool	write16a(u_int8_t);
+	void		exportfile(const char *);
+	void		importfile(const char *);
+	bool		enter_ppro();									//Enter PocketPro mode (goto menu 2)
+	u_int8_t	leave_ppro();									//Leave PocketPro mode (goto menu 1)
+	void		ppro(char, const char *);					//Handle PocketPro mode
+	u_int8_t	pp_setvpp(char);								//Set Vpp pins
+	void		pp_writeprogram(hex_data *,unsigned);	//Write program locations
+	void		pp_readprogram(hex_data *, unsigned);
+	void		pp_read8words(dblock *);					//Read 8 program words from the pic
+	void		pp_readeeprom(hex_data *, unsigned);
+	void		pp_read8eeprom(dblock *);
+	void		pp_readfuse(u_int16_t *, u_int16_t *);	//Read fuse and id words
+	u_int8_t	pp_blankcheck(u_int16_t);
+	u_int8_t	pp_bulkerase(u_int8_t, u_int16_t);
 };
 
 //Constants for the Pocket comm protocol
@@ -95,6 +136,6 @@ struct pocket_t : public tty_t
 
 extern int read_messages(FILE *);
 extern int read_chipdat(FILE *);
-extern int send_msgdat(tty_t);
-extern void handle_export(tty_t, const char *);
+extern int send_msgdat(pocket_t);
+extern void handle_export(pocket_t, const char *);
 #endif

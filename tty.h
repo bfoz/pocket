@@ -23,7 +23,9 @@ struct tty_t
 	int rawmode();
 	int reset();
 	ssize_t read(void *, size_t);
-	ssize_t read(char *);
+	//ssize_t read(unsigned char *);
+	u_int8_t read();
+	ssize_t read(u_int8_t *);
 	ssize_t write(const void *, size_t);
 	ssize_t write(char);
 };
