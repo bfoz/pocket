@@ -5,3 +5,4 @@
 
 20020903	Changed all variables named 'hex' to 'hexd' to avoid confusion with 'ios::hex'
 			Moved pocket_t et al to the pocket namespace
+			Added write(ostream&) to intelhex for outputting to a stream
