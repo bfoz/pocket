@@ -1,0 +1,334 @@
+Message text and chip description data format:
+	This is the data format as sent to the Pocket. PC storage format is implementation dependent.
+
+Format: See below for definitions
+	Note: There are no newline characters. The following feature has been reformatted to fit your screen. 
+	
+<MessageAddressIndex>
+<ChipCount>
+<Chip Names>
+<Message Addresses>
+<Message Strings>
+<Chip Data>
+<EOF>
+
+Definitions:
+
+<MessageAddressIndex> (4 bytes, MSB first, binary)
+	Byte offset of the <Message Adresses> section wrt to start of data stream. The address is 2 bytes long and is sent MSB first in the first 2 bytes. The last 2 bytes are padding and are ignored. The address is equal to
+	sizeof(MAI)=4 + sizeof(ChipCount)=2 + 5*num_msg + total strlen of <Chip Names>
+	
+<ChipCount> (2 bytes, MSB first, binary)
+	Number of Chip descriptions being sent
+
+<Chip Names>	(5 bytes + string length, one record per chip description)
+	[%c%s]%d	:							per record format
+	[			:	(1 byte, ASCII)	Start delimeter
+	%c			:	(1 byte, binary)	length of %s
+	%s			:	(%c bytes, ASCII)	chip identifier string
+	]			:	(1 byte, ASCII)	Stop delimeter
+	%d			:	(2 bytes, binary)	stream relative address of chip info (MSB first)
+
+<Message Addresses>	(length = 2*<number of strings>, 2 byte records)
+	One record for every message string being sent. Each record is the 2 byte stream relative address of the corresponding message text, sent MSB first. Record 1 corresponds to string 1, record 2 -> string 2, and so on.
+	
+<Message Strings>	(variable length)
+	Each record is a text string terminated by a single '^' character.
+
+<Chip Data> (variable length)
+	Each record is a full description for a single chip. Each description has a number of sub-records and fields as described below.
+
+	[%s]<Chip Info><RAM Aliases><RAM Bit aliases><Fuses>
+
+	[			:	Chip name start delimeter
+	%s			:	Chip name
+	]			:	Chip name stop delimeter
+	<Chip Info>
+		<ROM><EEPROM><RAM><VPP><DELAY><PINS><CP><TYPE><BOOT><ID><FUSE><FUSE MASK>
+
+		<ROM>		(2 bytes, ASCII Hex, LSB first)	Number of ROM pages on chip
+		<EEPROM>	(4 bytes, ASCII Hex, LSB first)	Number of EEPROM pages on chip
+		<RAM>		(1 bytes, ASCII Hex, LSB first)	Number of RAM pages on chip
+		<VPP>		(1 byte, ASCII enum)		'1': Vpp on socket pin 1
+													'2':Vpp on socket pins 5,14
+		<DELAY>	(1 bytes, ASCII enum)	'L': long programming delay (20ms) 
+													'S': short delay (5ms)
+		<PINS>	(1 byte, ASCII enum)	Number of pins on chip
+												'0'	8 pins
+												'1'	18 pins
+												'2'	28 pins
+												'3'	40 pins
+		<CP>		(1 byte, ASCII enum)	Confirm programming when Code Protect flag set?
+												'Y'	Yes
+												'N'	No
+		<TYPE>	(1 byte, ASCII enum)	Chip/File type
+												'M'	14 bit INHX8M
+												'2'	16 bit INHX32
+		<BOOT>	(1 byte, ASCII enum)	Can the chip program itself?
+												'Y'	Yes
+												'N'	No
+		<ID>		(1 byte, ASCII enum)	Number of ID words
+												'1'	1 word
+												'2'	2 words
+		<FUSE>	(1 byte, ASCII enum)	Number of fuse words
+												'1'	1 word
+												'4'	4 words
+		<FUSE MASK>	(32 bytes, ASCII Hex, LSB first)	AND/OR masks for fuse words
+			<AND0><OR0><AND1><OR1><AND2><OR2><AND3><OR3>
+			Each variable is a 4 byte ASCII Hex representation of a 16 bit value.
+			LSB first. AND0 sent first.
+
+	<RAM Aliases>
+		Multiple records up to the number of RAM pages. Each begins with '#' and ends with '^'. After the '#' is a single byte (ASCII Hex) indicating the RAM page referred to by the rest of the record. Each field is formatted like so:
+			,%s;%d
+				,	(ASCII character)						Seperator
+				%s	(ASCII text)							Alias text
+				;	(ASCII character)						Seperator
+				%d	(2 bytes, ASCII Hex, LSB first)	Address of RAM location
+
+	<RAM bit aliases>
+		Aliases for individual bits within RAM locations. Each record starts with '%' and ends with '^'. 
+		First 3 bytes of the record are:
+			%c%d
+				%c	(1 byte, ASCII Hex)					RAM page
+				%d	(2 bytes, ASCII Hex, LSB first)	RAM address
+		The rest of the record contains bit aliases formatted as:
+			,%s
+				,	(ASCII character)					Seperator
+				%s	(ASCII Text)						Alias text or '?' if no alias			
+
+	<FUSES>
+		Definitions of fuses and fuse options.
+		@%c%s,%x<options>^
+			@	start of fuse definition. Last def for a particular fuse starts with '/'
+			%c	(1 byte, ASCII Hex)					Fuse number
+			%s	(variable, ASCII Text)				Fuse name
+			,												Fuse name delimeter
+			%x	(4 byte, ASCII Hex, LSB first)	Fuse bit mask (bits used are set to 1)
+			<options>
+				+%x%s
+					+	(1 byte, ASCII char)						Option start delimeter
+					%x	(4 bytes, ASCII Hex, LSB first)		Option value
+					%s	(variable, ASCII Text)					Option name
+
+<EOF>
+	"!!!end^"	
+	
+*** Protocol packets ***
+
+Import message text and chip data file
+
+	This process is initiated by the pocket once on initial startup and when the user holds down the K3 button on startup. The PC must respond within 1 second or the request times out.
+
+	As seen from the PC
+	
+				receive	'T'
+				receive	'T'
+				send	1 byte
+				while(receive 'R')
+				{
+					if(data_remaining)
+					{
+						send	'Y'
+						send	16 bytes of data
+					}
+					else
+					{
+						send	'N'
+						break
+					}
+				}
+				end transfer
+				
+	As seen from the Pocket
+
+				send	'T'
+				send	'T'
+				receive	1 byte
+				send	'R'
+				while(receive 'Y')
+				{
+					receive 16 bytes
+					send	'R'
+				}
+				end transfer
+	
+
+Import HEX file to Pocket
+
+	This sequence is initiated by the pocket when the user selects the "Import File" function.
+
+	As seen from the PC
+
+				receive	'I'
+				receive	'I'
+				if(load file)
+				{
+					send	'Y'
+					receive 19 bytes		//ROM/EEPROM/FUSE data
+					send	'Y'
+					receive	'F'
+					send	32 bytes			//File header
+					while(receive	'M')
+					{
+						if(data_remaining)
+						{
+							send	0x00
+							send	16 bytes	//ROM/EEPROM data
+						}
+						else
+							send	0xFF
+					}
+					receive	'F'
+					receive	32 bytes		//Useage data
+					send	1 byte
+				}
+				else
+				{
+					send 'N'
+				}
+				end transfer
+
+		As seen from Pocket
+
+			send	'I'
+			send	'I'
+			if(receive 'Y')
+			{
+				send	19 bytes				//ROM/EEPROM/FUSE
+				if(receive	'Y')
+				{
+					send	'F'
+					receive	32 bytes		//File header
+					send	'M'
+					while(receive	0x00)
+					{
+						receive	16 bytes
+						send	'M'
+					}
+					if(recieve	0xFF)
+					{
+						send	'F'
+						send	32 bytes		//Useage data
+						receive	1 byte
+					}
+				}
+			}
+			end transfer
+
+	ROM/EEPROM/Fuse data block	(19 bytes)
+	
+		ROM pages	(1 byte, binary)	Number of ROM pages
+		EEPROM size	(2 bytes, binary, MSB first)	Number of EEPROM bytes
+		Fuse Mask	(16 bytes, binary, MSB first)	8 2byte masks
+			<AND0><OR0>...<AND3><OR3>
+
+	File Header	(32 bytes)
+	
+		Filename	(12 bytes, ASCII)	The name of the file being sent
+		ID1	(2 bytes, MSB first)
+		ID2	(2 bytes)
+		Fuse1	(2 bytes)	Fuse loc. 1, Fuse loc. 0
+		Fuse2	(2 bytes)	Fuse loc. 3, Fuse loc. 2
+		Fuse3	(2 bytes)	Fuse loc. 5, Fuse loc. 4
+		Fuse4	(2 bytes)	Fuse loc. 7, Fuse loc. 6
+		Padding	(2 bytes)	0x00
+		ROM		(1 byte)	ROM Data page size in bytes
+		EEPROM	(2 bytes, MSB first)	EEPROM data size in bytes
+		FileType	(1 bytes, ASCII enum)	'M': INHX8M	'2': INHX32
+		Padding	(2 bytes)	0x00
+		
+Export HEX file to PC
+
+	This sequence is initiated by the Pocket when the user selects the "Export File" function.
+
+	As seen from the PC
+
+			receive	'E'
+			receive	'E'
+			send	1 byte
+			receive	3 bytes				//ROM/EEPROM data
+			if(need_more_data)
+			{
+				send	'M'
+				receive	16 bytes
+			}
+			else
+				send	'N'
+			receive	'M'
+			if(filename changed)
+			{
+				send	'Y'
+				send	12 bytes				//New filename
+			}
+			else
+				send	'N'
+			end transfer
+
+	As seen from the Pocket
+
+			send	'E'
+			send	'E'
+			receive	1 byte
+			send	3 bytes					//ROM/EEPROM data
+			while(receive	'M')
+			{
+				send	16 bytes
+			}
+			if(receive	'N')
+			{
+				send	'M'
+				if(receive	'Y')
+				{
+					receive	12 bytes		//New filename
+				}
+			}
+			end transfer
+
+"PocketPro" Mode
+
+	This mode allows the Pocket to act as a bench-top programmer. It accepts commands over the serial port and then does what it's told.
+
+	As seen from Pocket
+
+		send	'P'					//Announce PocketPro mode
+		send	'P'
+		receive	1 byte			//Wait for any byte
+	LWaitCm:
+		receive	1 byte			//0: PocketPro mode	1:Restart PocketPro mode
+		receive	1 byte			//Programming speed	'0': Short delay	'1': long delay
+		send	'P'					//Acknowledge programmer command
+	PWaitCom:
+		switch(receive 1 byte)
+		{
+			0:	goto PWaitCom	//PgmCommand
+			1:	goto DoQuitX	//VppOnOff (don't use this one)
+			2: 	//Toggle Vpp
+				receive 1 byte	//Which pins to use for Vpp	'1':Vpp1	'2':Vpp2
+				send	'Y'		//Return confirmation
+				goto PWaitCom
+			3:	//ProgROM
+			4:	//ProgEROM
+				send	'M'		//Request 16 bytes
+				if(receive 1 byte == 0xFF)
+					goto QuitU
+				else
+				{
+					receive 1 byte
+					send	'M'	//Request more data (I don't get this)
+				}
+			5:	//ReadROM
+			6:	//ProgFuse
+			7:	//ProgEFuse
+			8:	//ReadFuse
+			9:	//ReadEMem
+			10:	//WriteEMem
+			11:	//IsErased?
+			12:	//EraseAll
+			13: goto QuitU	//QuitNoRes
+			14: break;	//QuitProg
+			//Process command
+		}
+		send	'Q'		//Signal quit
+	QuitU:
+		goto	LWaitCm	//Wait for further instructions

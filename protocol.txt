@@ -1,0 +1,390 @@
+--------------
+CHIP DATA FILE
+--------------
+
+The chip data file is used by the Pocket to get message information that is displayed on the LCD and to get information about the chips for programming and so that the HEX code can be disassembled into mnemonic format.
+
+
+There is a text file called pocket.msg which has all the message info in it.
+
+It has this format
+
+HH,MESSAGE
+
+HH is a HEX number from 02 to FF.
+, is a delimiter.
+MESSAGE is the text message that will be displayed and must be 1 - 16 chars long.
+It is not recommended to change the current HEX numbers of these messages or the Pocket software may not function properly.
+
+
+There is also a file called chipdat.txt which has all the user chip info in it, and the format for this is described in the Pocket help file.
+
+
+The PC software must merge these files into one and insert address information so that the Pocket can find the messages and chip data quickly. 
+
+
+The final file format is as follows.
+
+ 00
+01
+[16F83] s
+ 
+ ,
+ =
+ G
+ S
+ `
+ THE POCKET  by^
+BUBBLE  SOFTWARE^
+FUNCTION:^
+SELECT CHIP^
+FILE MANAGER^
+EXPORT FILE^
+[16F83]
+0502004022L1NMN113FFF0000FFFF0000FFFF0000FFFF0000
+#0,INDF;00,TMR0;01,PCL;02,STATUS;03,FSR;04,PORTA;05,PORTB;06,EEDATA;08,EEADR;09,PCLATH;0A,INTCON;0B^
+#1,OPT_REG;01,TRISA;05,TRISB;06,EECON1;08,EECON2;09^
+%003,C,DC,Z,PD,TO,RP0,RP1,IRP^
+%00B,RBIF,INTF,T0IF,RBIE,INTE,T0IE,EEIE,GIE^
+%101,PS0,PS1,PS2,PSA,T0SE,T0CS,INTEDG,RBPU^
+%108,RD,WR,WREN,WRERR,EEIF,?,?,?^
+@0OSC,0003+0000LP+0001XT+0002HS+0003RC^
+@0WDT,0004+0000OFF+0004ON^
+@0PWRTE,0008+0000ON+0008OFF^
+/0CODE PROTECT,3FF0+3FF0OFF+0000ON^
+!!!end^
+
+
+1st line = address of the 1st message address pointer.
+(A pointer to a pointer if you like)
+16 bit address stored in 2 bytes - (address div 256) + (address mod 256) = HL byte + 2 '0' characters
+
+ 00        <<<< This address points to
+01
+[16F83] s
+           <<<< this address
+
+
+2nd line = total chip count in ASCII hex format (HL)
+
+3rd line to line (3 + chip count) are the chip names that are included in the chipdat.txt file.
+The user is requested to enter each chip name like this
+[16F83]
+
+This data is modified like this
+start delimiter - [
+decimal value of chip name character count. 1 min, 8 max - in this case - 5
+chip name - 16F83
+end delimiter - ]
+start address of chip data as it appears in the EEPROM memory
+16 bit address stored in 2 bytes - (address div 256) + (address mod 256) = HL byte
+The address is the 1st character of the chip data eg. '0' in 0502004022L....
+
+The lines following the chip names data are the EEPROM addresses for each message start character
+16 bit address stored in 2 bytes - (address div 256) + (address mod 256) = HL byte
+5 messages are shown with 5 addresses listed
+The 1st address points to the 'space' in " THE POCKET by ^"
+The 2nd address points to the 'B' in "BUBBLE  SOFTWARE^"
+etc
+
+The lines following the message addresses are the messages text.
+They are listed in pocket.msg preceded with message numbers and a comma delimiter which are there to help identify each one so that the Pocket .asm code writer can match them. These numbers and the comma are stripped from the message text and a '^' character is appended to the end before inserting into the final text file.
+
+00, THE POCKET by
+01,BUBBLE  SOFTWARE
+02,FUNCTION:
+etc.
+
+These become
+ THE POCKET  by^
+BUBBLE  SOFTWARE^
+FUNCTION:^
+etc.
+
+The numbers are used by the programmer for the "MessProcX" subroutines.
+
+Example
+          movlw 00h
+          call MessProc1   ; display " THE POCKET by" on line #1
+
+
+After this data comes the chip information from chipdat.txt.
+The chip information has the spaces stripped out and the ID and Fuse data format is swapped from
+Hi Byte Lo Byte format to Lo Byte Hi Byte format.
+
+02 0040 2 2 L 1 N M N 1 1 3FFF 0000 FFFF 0000 FFFF 0000 FFFF 0000
+becomes
+02004022L1NMN11FF3F0000FFFF0000FFFF0000FFFF0000
+
+All text lines except the chip name and the chip information have a '^' character appended to the end.
+Example..
+
+%003,C,DC,Z,PD,TO,RP0,RP1,IRP
+becomes
+%003,C,DC,Z,PD,TO,RP0,RP1,IRP^
+
+The last line in the file that the user enters must be
+!!!end
+
+This also has a '^' char appended
+!!!end^
+
+
+
+------------------------------------------------------------------------
+
+
+All commands must be received by both ends within 1 second 
+or a timeout error will occur and the Import function will
+terminate. This is unless the Pocket is specifically waiting
+for a PC response that could take some time.
+
+------------------------------
+IMPORT CHIP DATA FILE PROTOCOL
+------------------------------
+
+POCKET
+
+Start Text Request
+Sends 'T' + 'T'
+
+
+PC
+
+Receives 'T' + 'T'
+PC then builds the chip data file ready for transmission.
+Uses files 'chipdat.txt' and 'pocket.msg'
+The final character count must be evenly divisible by 16 because 16
+bytes are send for each packet
+If the PC encounters an error, then the error is displayed and
+the request is aborted
+If the file is OK for transmission, then send any char
+
+
+POCKET
+
+Receives any char
+Request 16 bytes of data - send 'R'
+
+
+PC
+
+[TEXT LOOP]
+Receives 'R'
+if more data, send 'Y' + 16 bytes of data
+if no more data send 'N' and no further PC action required
+
+
+POCKET
+
+Receives 'Y' or 'N'
+if 'Y' then
+Receives 16 bytes of data and stores it
+Request 16 bytes of data - send 'R'
+[TEXT LOOP]
+
+if 'N' then end of transfer
+
+[END]
+
+
+---------------------
+IMPORT COMMS PROTOCOL
+---------------------
+
+POCKET
+
+Start Import Request
+Sends 'I' + 'I'
+wait for PC response
+
+
+PC 
+
+Receives 'I' + 'I'
+File load dialog displayed
+HEX file is processed
+If file cancelled or error  - send 'N'
+If file success - send 'Y'
+
+
+POCKET
+
+Receives 'Y' or 'N'
+if 'N' - terminate import procedure
+if 'Y' - continue import procedure
+Send ROM page size and EEPROM byte size
+ROM pages = 8 bit value (1 page = 256 ROM words)
+EEPROM size = 16 bit value - Hi byte Lo byte format
+Send Fuse AND OR mask values
+Mask = 8 words - H byte L byte format
+AND0  OR0  AND1  OR1  AND2  OR2  AND3  OR3
+
+
+PC
+
+Receives 19 bytes of data
+ROM file data count is matched to received ROM count either
+by padding blank values or truncating file
+EEPROM file data count is matched to received EEPROM count either
+by padding blank values or truncating file
+FUSE file values are ANDed and ORed with received AND OR values
+Ready to send data - send 'Y'
+
+
+POCKET
+
+Should receive 'Y'
+if not 'Y' - terminate import procedure
+if 'Y' - continue import procedure
+Request 32 byte file header - send 'F'
+
+
+PC
+
+Receives 'F'
+Send 32 byte File Header
+BYTES 0 - 11    = FILENAME 12 bytes
+BYTES 12 - 13   = ID LOCS (1) H L 2 bytes - 12/16 ID 2001/0 - 2003/2  (18 ID 200007 6 5 4)
+BYTES 14 - 15   = ID LOCS (2) H L 2 bytes - (18 ID 200003 2 1 0)
+BYTES 16 - 17   = FUSE (1) H L 2 bytes - 12/16 fuse 18 fuse 300001 300000
+BYTES 18 - 19   = FUSE (2) H L 2 bytes - 18 fuse 300003 300002
+BYTES 20 - 21   = FUSE (3) H L 2 bytes - 18 fuse 300005 300004
+BYTES 22 - 23   = FUSE (4) H L 2 bytes - 18 fuse 300007 300006
+BYTES 24 - 25   = DUMMY 00h, DUMMY 00h
+BYTES 26        = ROM DATA PAGE SIZE H
+BYTES 27 - 28   = EEPROM DATA BYTE SIZE H L
+BYTES 29        = FILE TYPE INHX8M ('M') OR INHX32 ('2')
+BYTES 30 - 31   = DUMMY 00h, DUMMY 00h
+Initialises ROM and EEPROM data pointers
+
+
+POCKET
+
+Receives and stores 32 byte File Header
+
+[IMPORT LOOP]
+Request 16 bytes of file data - Send 'M'
+
+
+PC
+
+Receives 'M'
+After all ROM data is sent, EEPROM data immediately follows
+If there is data then send 00h + next 16 bytes of file data
+If there is no more data then send FFh
+
+
+POCKET
+
+Receives 00h or FFh
+if 00h then receive and store 16 bytes of file data
+Request 16 more bytes of file data - Send 'M'
+[IMPORT LOOP]
+
+if FFh then End of Import
+Send 'F' + 32 bytes of block usage data.
+Bytes 0 - 31 = blocks 0 - 7 to 248 - 255
+bits 7 = lowest block number
+bit = 0 = used, bit = 1 = unused
+wait for PC response
+
+PC
+
+Receives 'F' + 32 bytes of data and displays a block usage map
+OK button is available to terminate block usage
+When OK pressed, PC sends any char
+No further PC action required
+
+
+POCKET
+
+Receives any char and terminates the Import procedure
+
+[END]
+
+
+---------------------
+EXPORT COMMS PROTOCOL
+---------------------
+
+POCKET
+
+Start Export Request
+Sends 'E' + 'E'
+
+
+PC 
+
+Receives 'E' + 'E'
+Send any char
+
+
+POCKET
+
+Receives any char
+Send ROM page size and EEPROM byte size
+ROM pages = 8 bit value (1 page = 256 ROM words)
+EEPROM size = 16 bit value - Hi byte Lo byte format
+
+
+PC
+
+Receives 3 bytes
+Byte 1 = ROM page size
+Byte 2 and 3 = EEPROM byte size H L
+Request 16 bytes of data - send 'M'
+
+
+POCKET
+
+Receives 'M'
+Sends 16 bytes of data - H Byte L Byte
+
+
+PC
+
+[EXPORT LOOP]
+Receives 16 bytes of data and stores it
+If received data = ROM size then rest of
+data that is requested is for EEPROM
+If more data to receive, send 'M'
+
+If no more data needed, send 'N'
+
+
+POCKET
+
+Receives 'M' or 'N'
+if 'M', send next block of 16 bytes - H byte L byte
+[EXPORT LOOP]
+
+if 'N', request FileName - send 'M'
+Wait for PC response
+
+
+PC
+
+Receives 'M'
+The file data is transformed into INHX8M or INHX32
+File Save dialog is displayed with filename that
+was transferred from the Pocket. 
+
+If the user changes the filename before storing, then the PC sends 
+change of filename - send 'Y' + 12 chars of new filename
+
+If the filename was not changed or the save was aborted - send 'N'
+No further PC action required
+
+
+POCKET
+
+Receives 'Y' or 'N'
+if 'N', terminate Export procedure
+if 'Y', receive 12 bytes of filename data
+rewrite the new filename to memory
+Terminate Export procedure
+
+[END]
+
+
