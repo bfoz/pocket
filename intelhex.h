@@ -26,8 +26,10 @@ namespace intelhex
 
 	//Each line of the hex file generates a block of memory at a particular address
 	// pair<>.first is the address, pair<>.second is the data
-	typedef pair<uint16_t, vector<uint16_t> >	dblock;
-	typedef list<dblock> lst_dblock;
+	typedef	uint16_t	element;															//Data element
+	typedef	vector<element>	data_container;				//Element container
+	typedef pair<element, data_container>	dblock;	//Data block container
+	typedef list<dblock> lst_dblock;											//List of data blocks
 		 
 	//The data set that results from parsing a hex file
 	struct hex_data
