@@ -1,7 +1,8 @@
 /*	Filename: test_intelhex.cc
  *	Test the functionality of the intelhex module
- *	Created	20020901	Brandon Fosdick
 
+	Copyright (c) 2002, Terran Development Corporation
+	All rights reserved.
 	This code is made available to the public under a BSD-like license, a copy of which
 	should have been provided with this code in the file LICENSE. For a copy of the BSD 
 	license template please visit http://www.opensource.org/licenses/bsd-license.php

@@ -1,8 +1,9 @@
 /* Filename: main.cc
  * CLI interface program for Tony Nixon's Pocket Programmer 
  * For more info on the Pocket Programmer see http://bubblesoftonline.com/pocket/pocket.html
- * Copyright Brandon Fosdick 2001
 
+	Copyright (c) 2002, Terran Development Corporation
+	All rights reserved.
 	This code is made available to the public under a BSD-like license, a copy of which
 	should have been provided with this code in the file LICENSE. For a copy of the BSD 
 	license template please visit http://www.opensource.org/licenses/bsd-license.php
