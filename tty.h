@@ -14,6 +14,8 @@
 
 #include <termios.h>
 
+#define	TTY_DEBUG
+
 struct tty_t
 {
 	int fd;
@@ -33,5 +35,8 @@ struct tty_t
 	ssize_t write(const void *, size_t);
 	ssize_t write(char);
 };
+
+//Allow for inlining
+#include "tty.cc"
 
 #endif
