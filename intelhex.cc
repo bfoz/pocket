@@ -91,8 +91,9 @@ namespace intelhex
 				fscanf(fp, "%4x", &address);		//Read in address
 				fscanf(fp, "%2x", &rtype);			//Read type
 
-	/*			printf("Count: %02X\t", count);
-				printf("Address: %04X\t", address);
+	/*
+				printf("Count: %02X\t", count);
+				cout << "intelhex::load address = " << hex << address << endl;
 				printf("Type: %02X\n", rtype);
 				*/
 				count /= 2;								//Convert byte count to word count
@@ -152,35 +153,19 @@ namespace intelhex
 		for(lst_dblock::iterator i=blocks.begin(); i!=blocks.end(); i++)
 		{
 			checksum = 0;
-			if(i->first < 0x2100)
-			{	//Program memory and fuses require special consideration
-				os << ':';	//Every line begins with ':'
-				os.width(2);
-				os << i->second.size()*2;	//Record length
-				os.width(4);
-				os << static_cast<uint16_t>(i->first*2);	//Address
-				os << "00";											//Record type
-				for(int j=0; j<i->second.size(); j++)	//Store the data bytes, LSB first, ASCII HEX
-				{
-					os.width(2);
-					os << (i->second[j] & 0x00FF);
-					os.width(2);
-					os << ((i->second[j]>>8) & 0x00FF);
-					checksum += i->second[j];
-				}
-			}
-			else	//EEPROM can just be written out
+			os << ':';	//Every line begins with ':'
+			os.width(2);
+			os << i->second.size()*2;	//Record length
+			os.width(4);
+			os << static_cast<uint16_t>(i->first*2);	//Address
+			os << "00";											//Record type
+			for(int j=0; j<i->second.size(); j++)	//Store the data bytes, LSB first, ASCII HEX
 			{
 				os.width(2);
-				os << i->second.size();		//Record length
-				os.width(4);
-				os << i->first << "00";		//Address and record type
-				for(int j=0; j<i->second.size(); j++)	//Store the data bytes, LSB first, ASCII HEX
-				{
-					os.width(2);
-					os << (i->second[j] & 0x00FF);
-					checksum += i->second[j];
-				}
+				os << (i->second[j] & 0x00FF);
+				os.width(2);
+				os << ((i->second[j]>>8) & 0x00FF);
+				checksum += i->second[j];
 			}
 			os.width(2);
 			os << static_cast<int>(checksum);	//Bogus checksum byte
