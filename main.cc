@@ -19,7 +19,7 @@
 #include "tty.h"
 #include "intelhex.h"
 
-static	pocket_t	pocket;
+static	pocket::pocket_t	Pocket;
 static	char	devpath[256] = "/dev/cuaa0";
 static	char	msgpath[256] = "pocket.msg";
 static	char	datpath[256] = "chipdat.txt";
@@ -41,7 +41,7 @@ static	char	datpath[256] = "chipdat.txt";
 void catch_ctrl_c(int signo)
 {
 	printf("\nCaught ^C\n");
-	pocket.close();
+	Pocket.close();
 	printf("Goodbye!\n");
 	exit(0);											//Abandon ship
 }
@@ -112,23 +112,23 @@ int main(int argc, char *argv[])
 	exit(0);
 	*/
 	//Open the serial port and set the baud rate
-	if((pocket.open(devpath,O_RDWR))==-1)
+	if((Pocket.open(devpath,O_RDWR))==-1)
 	{
 		printf("Couldn't open %s", devpath);
 		exit(1);
 	}
-	pocket.rawmode();		//Set the terminal to raw mode
+	Pocket.rawmode();		//Set the terminal to raw mode
 
 	//Try to detect PocketPro mode
 	//Send a 1 to the port. If the pocket is listening it should respond
-	pocket.write(0x01);
+	Pocket.write(0x01);
 	while(!done)		//Wait for data
 	{
 		//Handle state changes due to input
-		switch(c=pocket.read())
+		switch(c=Pocket.read())
 		{
 			case POC_REQICHIP:	
-				if(pocket.read()==POC_REQICHIP)
+				if(Pocket.read()==POC_REQICHIP)
 				{
 					printf("Pocket is requesting chip data\n");
 					if((fp=fopen(msgpath,"r"))==NULL)		//Open the messages file
@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
 						printf("Couldn't open message file: %s\n", msgpath);
 						exit(1);
 					}
-					read_messages(fp);							//Read in the messages
+					pocket::read_messages(fp);					//Read in the messages
 					fclose(fp);										//Close msgpath
 					
 					if((fp=fopen(datpath,"r"))==NULL)		//Open the chip data file
@@ -144,22 +144,22 @@ int main(int argc, char *argv[])
 						printf("Couldn't open chip data file: %s\n", datpath);
 						exit(1);
 					}
-					if(read_chipdat(fp)==-1)					//Read and parse chip data
+					if(pocket::read_chipdat(fp)==-1)					//Read and parse chip data
 						printf("Error reading chip data file: %s\n", datpath);
 					fclose(fp);										//Close datpath
 					
 					//Send messages and chip data
 					printf("Exporting message and chip info\n");
-					pocket.write(POC_ANYCHAR);
-					pocket.read(&c, 1);
+					Pocket.write(POC_ANYCHAR);
+					Pocket.read(&c, 1);
 					if(c=='R')
-						send_msgdat(pocket);
+						send_msgdat(Pocket);
 					done = true;
 					printf("Finished exporting\n");
 				}
 				break;
 			case POC_REQICOMM:	//Export a hex file to the pocket
-				if(pocket.read()==POC_REQICOMM)
+				if(Pocket.read()==POC_REQICOMM)
 				{
 					if(path[0]!=0x00)
 					{
@@ -175,25 +175,25 @@ int main(int argc, char *argv[])
 					}
 					else		//Abort the transfer
 					{
-						pocket.write('N');
+						Pocket.write('N');
 						done = true;
 					}
 				}
 				break;
 			case POC_REQECOMM:
-				if(pocket.read()==POC_REQECOMM)
+				if(Pocket.read()==POC_REQECOMM)
 				{
 					printf("Pocket is sending a file\n");
-					pocket.importfile(NULL);
+					Pocket.importfile(NULL);
 					done=true;
 				}
 				break;
-			case POC_POCKETPRO:		//The pocket was either just turned on, or it was waiting in menu 1
-				if(pocket.read()==POC_POCKETPRO)
+			case POC_POCKETPRO:		//The Pocket was either just turned on, or it was waiting in menu 1
+				if(Pocket.read()==POC_POCKETPRO)
 				{
 					printf("PocketPro detected\n");
-					pocket.write(POC_ANYCHAR);	//Acknowledge with a single byte
-					pocket.ppro(command, path);					//Handle menu 1
+					Pocket.write(POC_ANYCHAR);	//Acknowledge with a single byte
+					Pocket.ppro(command, path);					//Handle menu 1
 					done = true;
 				}
 				break;
@@ -201,13 +201,13 @@ int main(int argc, char *argv[])
 				//It was in the second menu, and now its in the first menu
 				//So reset it and let everything be handled normally
 				printf("Found it, it was in menu 2\n");
-				pocket.write(0x01);	//Reset it again
+				Pocket.write(0x01);	//Reset it again
 				break;
 			default: printf("%x\n", c); break;		//Ignore garbage
 		}
 	}
 
-	pocket.close();
+	Pocket.close();
 	
 	return 0;
 }

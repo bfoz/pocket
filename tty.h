@@ -30,5 +30,4 @@ struct tty_t
 	ssize_t write(char);
 };
 
-
 #endif

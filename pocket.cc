@@ -677,6 +677,8 @@ namespace pocket
 						printf("Couldn't load %s\n", path);
 						return;
 					}
+					//Find the last block that starts before the EEPROM address
+					//*** FIXME *** Hard coded for 16F877
 					intelhex::lst_dblock::reverse_iterator ri = hexd.blocks.rbegin();
 					while((ri!=hexd.blocks.rend()) && (ri->first > 0x2100) )
 						ri++;
@@ -685,6 +687,8 @@ namespace pocket
 						cerr << "No EEPROM data\n";
 						break;
 					}
+					//Make sure the block actually includes the EEPROM address
+					//*** FIXME *** Hard coded for 16F877
 					if( (ri->first + ri->second.size()) < 0x2100 )
 					{
 						cerr << "No EEPROM data\n";
@@ -694,7 +698,7 @@ namespace pocket
 					printf("Programming EEPROM...\n");
 					fflush(stdout);
 					write(PP_WRITE_EEPROM);
-					intelhex::lst_dblock::iterator i; // = convert(ri);
+					intelhex::lst_dblock::iterator i = ri.base(); //Convert to forward itt
 					unsigned j, k;
 					for(j=0;j<256; j++)
 					{

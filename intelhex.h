@@ -8,6 +8,7 @@
 #ifndef INTELHEXH
 #define INTELHEXH
 
+#include <fstream>
 #include <vector>
 #include <list>
 
@@ -40,6 +41,7 @@ namespace intelhex
 		uint16_t	&operator[](uint16_t);	//Array access operator
 		bool		load(const char *);			//Load a hex file from disk
 		void		write(const char *);			//Save hex data to a hex file
+		void		write(ostream &);			//Write all data to an output stream
 		void		truncate(uint16_t);			//Truncate all of the blocks to a given length
 	};
 
