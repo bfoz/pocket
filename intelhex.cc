@@ -5,6 +5,8 @@
  * For a copy of the BSD License see http://www.freebsd.org
  * */
 
+#include <iostream>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -127,44 +129,60 @@ namespace intelhex
 	//Write all data to a file
 	void	hex_data::write(const char *path)
 	{
-		FILE	*fp;
-//		int i, j;
-		u_int8_t	checksum;
+		ofstream	ofs(path);
+		write(ofs);
+	}
 
-		if( (fp=fopen(path, "w"))==NULL )
-		{
-			printf("%s: Can't open %s\n", __FUNCTION__, path);
-			return;
-		}
+	//Write all data to an output stream
+	void	hex_data::write(ostream &os)
+	{
+		uint8_t	checksum;
 
-		truncate(8);				//Truncate each record to length=8
+		truncate(8);				//Truncate each record to length=8 (purely asthetic)
 		blocks.sort();				//Sort the data blocks by address (ascending)
 
+		os.setf(ios::hex, ios::basefield);	//Set the stream to ouput hex instead of decimal
+		os.setf(ios::uppercase);				//Use uppercase hex notation
+		os.fill('0');								//Pad with zeroes
+		
 		for(lst_dblock::iterator i=blocks.begin(); i!=blocks.end(); i++)
 		{
 			checksum = 0;
 			if(i->first < 0x2100)
 			{	//Program memory and fuses require special consideration
-				fprintf(fp, ":%02X%04X00", i->second.size()*2, i->first*2);	//Record length and address
+				os << ':';	//Every line begins with ':'
+				os.width(2);
+				os << i->second.size()*2;	//Record length
+				os.width(4);
+				os << static_cast<uint16_t>(i->first*2);	//Address
+				os << "00";											//Record type
 				for(int j=0; j<i->second.size(); j++)	//Store the data bytes, LSB first, ASCII HEX
 				{
-					fprintf(fp, "%02X%02X", i->second[j] & 0x00FF, (i->second[j]>>8) & 0x00FF);
+					os.width(2);
+					os << (i->second[j] & 0x00FF);
+					os.width(2);
+					os << ((i->second[j]>>8) & 0x00FF);
 					checksum += i->second[j];
 				}
 			}
 			else	//EEPROM can just be written out
 			{
-				fprintf(fp, ":%02X%04X00", i->second.size(), i->first);	//Record length and address
+				os.width(2);
+				os << i->second.size();		//Record length
+				os.width(4);
+				os << i->first << "00";		//Address and record type
 				for(int j=0; j<i->second.size(); j++)	//Store the data bytes, LSB first, ASCII HEX
 				{
-					fprintf(fp, "%02X", i->second[j] & 0x00FF);
+					os.width(2);
+					os << (i->second[j] & 0x00FF);
 					checksum += i->second[j];
 				}
 			}
-			fprintf(fp, "00\n");	//Bogus checksum and a newline
+			os.width(2);
+			os << static_cast<int>(checksum);	//Bogus checksum byte
+			os << endl;
 		}
-		fprintf(fp, ":00000001FF\n");	//EOF marker
-		fclose(fp);
+		os << ":00000001FF\n";			//EOF marker
 	}
 
 	//Truncate all of the blocks to a given length
