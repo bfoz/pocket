@@ -6,3 +6,9 @@
 20020903	Changed all variables named 'hex' to 'hexd' to avoid confusion with 'ios::hex'
 			Moved pocket_t et al to the pocket namespace
 			Added write(ostream&) to intelhex for outputting to a stream
+
+20020905	Updated the license text in each file header to be more specific. It now reads
+
+	This code is made available to the public under a BSD-like license, a copy of which
+	should have been provided with this code in the file LICENSE. For a copy of the BSD 
+	license template please visit http://www.opensource.org/licenses/bsd-license.php

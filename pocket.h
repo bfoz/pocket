@@ -1,8 +1,11 @@
 /* Filename: pocket.h
  *	Interface to Tony Nixon's Pocket Programmer
- * Copyright Brandon Fosdick 2001
- * This software and all of its components are available under the BSD License
- * For a copy of the BSD License see http://www.freebsd.org
+ * Copyright Brandon Fosdick 2001-2002
+
+	This code is made available to the public under a BSD-like license, a copy of which
+	should have been provided with this code in the file LICENSE. For a copy of the BSD 
+	license template please visit http://www.opensource.org/licenses/bsd-license.php
+
  * */
 
 #ifndef POCKET_H
