@@ -17,8 +17,19 @@
 	<li>Add the ability to display useage info</li>
 </ul>
 <h3>Download</h3>
-<p><a href="pocket.tar.gz">Source Code</a><br>
+<p>
+<a href="pocket-0.0.0.1.tbz">pocket-0.0.0.1 source</a><br>
+<a href="pocket.tar.gz">Original source code (for the nastalgic)</a><br>
 <!-- <a href="pocket.tar">FreeBSD/i386 Binary</a></p> -->
+
+<h3>September 5, 2002</h3>
+<p><strong>New Version: pocket-0.0.0.1</strong> Its been a long time since I looked at any of this code. I got it to the point were it does everything that I need and stopped messing with it; too afraid to break something I guess. About a week or so ago somebody wrote asking about Linux support and even volunteered to handle the porting. Then I remembered that I wrote the original code while working on my thesis. My brain was mostly fried during those days so I figured I'd better take a look at the code that I was allowing the rest of the world to see. Talk about embarassing. To prove that the previously posted code isn't indicitive of my programming abilities I've started cleaning things up a bit, or a lot. This may turn into a complete rewrite by the time I'm done with it.</p>
+<p>For starters I'm making extensive use of STL containers. For this program any related performance considerations aren't important and the STL version of the code will be much easier to maintain and port. It looks better too. I have no idea why I didn't use containers to start with, I must have been really brain dead. I'm almost afraid to go back and read my thesis now.</p>
+<p>I've also started converting I/O routines to use C++ streams instead of read/write calls. Hopefully this will make the code easier to port. The intelhex module now uses streams for output, I'm still tinkering with input. The last part to get converted will be the tty module since thats hardest to test.</p>
+<p>BTW, I fixed Makefile so that it no longer requires bhf.post.mk.</p>
+<p>One more thing...I updated each file's header to be more explicit about the copyright info. The license is still BSD, same as always, but now each header references the file LICENSE which is included in the new distribution.</p>
+<p>One more thing...Since the FreeBSD project has switched to bzip2 for packages I've followed suit and compressed the new source code distro with bzip2.</p>
+
 <h3>August 6, 2001</h3>
 <p><strong>Added EEPROM support in PocketPro mode.</strong> The project I'm working on finally needed to program EEPROM so I added that ability in the software. It's hard-coded for 16F87X since thats all I need right now. It still display more text than it needs to, if anybody complains I'll fix it.</p>
 <h3>July 27, 2001</h3>
