@@ -1,0 +1,7 @@
+20020901	Added this file
+			Makefile no longer depends on bhf.post.mk
+			Added 'test' target to Makefile which compiles a test program for intelhex
+			The intelhex module is now in the intelhex namespace and uses STL containers
+
+20020903	Changed all variables named 'hex' to 'hexd' to avoid confusion with 'ios::hex'
+			Moved pocket_t et al to the pocket namespace
