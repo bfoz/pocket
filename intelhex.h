@@ -8,33 +8,40 @@
 #ifndef INTELHEXH
 #define INTELHEXH
 
-#define	HEX_FORMAT_INHX8M	0x01
-#define	HEX_FORMAT_INHX32	0x02
+#include <vector>
+#include <list>
 
-//Each line of the hex file generates a block of memory at a particular address
-//This structure holds a single block
-struct dblock
+#include <unistd.h>
+
+namespace intelhex
 {
-	u_int16_t	address;		//The MCU address where this block starts
-	u_int16_t	*data;		//The data
-	u_int16_t	length;		//The number of elements in the data array (64k limit)
-};
 
-//The data set that results from parsing a hex file
-struct hex_data
-{
-	char			format;						//Format of the parsed file (necessary?)
-	dblock		*blocks;						//Pointer to an array of data blocks
-	unsigned		num_blocks;					//Number of dblocks in the array
+	#define	HEX_FORMAT_INHX8M	0x01
+	#define	HEX_FORMAT_INHX32	0x02
 
-				hex_data();						//Constructor
-	void		cleanup();						//Cleanup
-	dblock	*new_block();					//Extend the array by one block
-	dblock	*add_block(u_int16_t, u_int16_t);	//Append a new block with address/length
-	u_int16_t	&operator[](u_int16_t);	//Array access operator
-	bool		load(const char *);			//Load a hex file from disk
-	void		write(const char *);			//Save hex data to a hex file
-	void		truncate(u_int16_t);			//Truncate all of the blocks to a given length
-};
+	//Each line of the hex file generates a block of memory at a particular address
+	// pair<>.first is the address, pair<>.second is the data
+	typedef pair<uint16_t, vector<uint16_t> >	dblock;
+	typedef list<dblock> lst_dblock;
+		 
+	//The data set that results from parsing a hex file
+	struct hex_data
+	{
+		char			format;						//Format of the parsed file (necessary?)
 
+		lst_dblock	blocks;						//List of data blocks
+														//I used a list instead of a vector since
+														//	the data set gets sorted a few times
+		
+					hex_data();						//Constructor
+		void		cleanup();						//Cleanup
+		dblock	*new_block();					//Extend the array by one block
+		dblock	*add_block(uint16_t, uint16_t);	//Append a new block with address/length
+		uint16_t	&operator[](uint16_t);	//Array access operator
+		bool		load(const char *);			//Load a hex file from disk
+		void		write(const char *);			//Save hex data to a hex file
+		void		truncate(uint16_t);			//Truncate all of the blocks to a given length
+	};
+
+}
 #endif
