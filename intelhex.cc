@@ -175,6 +175,7 @@ namespace intelhex
 			{
 				dblock db;
 				blocks.push_back(db);	//Append a new block
+				blocks.back().first = i->first + len;	//Give the new block an address
 				blocks.back().second.assign(&i->second[len], i->second.end());	//Insert the extra bytes into the new block
 				i->second.resize(len);	//Truncate the original block
 			}
