@@ -686,9 +686,10 @@ namespace pocket
 					intelhex::lst_dblock::reverse_iterator ri = hexd.blocks.rbegin();
 					while((ri!=hexd.blocks.rend()) && (ri->first > 0x2100) )
 						ri++;
+					cout << "Found EEPROM data @ " << hex << ri->first << endl;
 					if(ri==hexd.blocks.rend())	//Check for a valid block number
 					{
-						cerr << "No EEPROM data\n";
+						cerr << "No EEPROM data (EOF)\n";
 						break;
 					}
 					//Make sure the block actually includes the EEPROM address
@@ -702,8 +703,10 @@ namespace pocket
 					printf("Programming EEPROM...\n");
 					fflush(stdout);
 					write(PP_WRITE_EEPROM);
-					intelhex::lst_dblock::iterator i = ri.base(); //Convert to forward itt
 					unsigned j, k;
+					//Initialize di to point to the first byte of EEPROM data
+					//***	FIXME	*** hardcoded for 16F877
+					intelhex::data_container::iterator di = ri->second.begin()+ (ri->first - 0x2100);
 					for(j=0;j<256; j++)
 					{
 						k = j%8;
@@ -721,16 +724,20 @@ namespace pocket
 							}
 						}
 						//If the end of a block has been reached, go to the next block
-						if((0x2100 + j) > (i->first + i->second.size() - 1))
-							i++;
-						if(i==hexd.blocks.end())	//If no more blocks...
+						if(di == ri->second.end())	
+						{
+							ri--;		//Go forward by decrementing since ri is a reverse iterator
+							di = ri->second.begin();	//Set di to point to the beggining of the next block
+						}
+						if(ri==hexd.blocks.rend())	//If no more blocks...
 						{
 							for(;k<8;k++)	//Finish the packet
 								write(0xFF);
 							j=500;	//Force the j loop to terminate
 							break;	//break out of the k loop
 						}
-						write(i->second[j+0x2100 - i->first]);
+						write(static_cast<uint8_t>(*di));		//Write out a data byte
+						++di;		//Go to the next data byte
 					}
 					if(j>=256)
 						write('N');		//No more data
