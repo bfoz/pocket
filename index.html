@@ -5,5 +5,26 @@
 <h1>Unix Tools for <a href="http://www.bubblesoftonline.com/pocket/pocket.html">Tony Nixon's Pocket Programmer</a></h1>
 <h2>Overview</h2>
 <p>Tony Nixon has created an excellent programmer for microcontrollers that he is making available as a kit on his <a href="http://www.bubblesoftonline.com/pocket/pocket.html">website</a>. Currently the software provided for the programmer only runs in Windows which is a problem for those of us who don't use Windows. So, I've started writing some tools that will work in Unix. My development platform is <a href="http://www.freebsd.org">FreeBSD</a> so for now thats all these tools are guaranteed to work with. I'll gladly take patches for other OS's. I'd also like to work on a set of tools for PalmOS at some point. Very shortly I'll have a public CVS server going so others can checkout the code. </p>
+<h3>To Do</h3>
+<ul>
+	<li>Add command line options for specifying chip info and message files</li>
+	<li>Add support for File Import/Export</li>
+	<li>Add the ability to display useage info</li>
+	<li>Add support for programming directly to a PIC</li>
+</ul>
+<h3>Download</h3>
+<p><a href="pocket.tar.gz">Source Code</a><br>
+<a href="pocket.tar">FreeBSD/i386 Binary</a></p>
+<h3>May 31, 2001</h3>
+<p><strong>Code!!!</strong> Yes, thats right folks I have real working code now. For the moment it only supports downloading message text and chip info, but don't worry more is coming. I just wanted to get something posted so others could play with it. The code is messy, I plan to fix that at some point. I had some fun with arrays of pointers to arrays. :) Thats what I get for staying up too late. </p>
+<p>I'm making both the source code and a binary available. The code is under a BSD license and the binary is only for FreeBSD/i386 cause that's what I use. If you want something else, make it yourself (or submit patches). If there's enough interest I'll make a FBSD port/package for it (somebody else will have to do rpm's and deb's)</p>
+<h4>Notes</h4>
+<ul>
+	<li>I provided Unixified copies of chipdat.txt and pocket.msg since Tony's version has CRLF pairs and I'm not sure if my program can handle them in all cases. It works for me, but as always, YMMV.</li>
+</ul>
+<h4>Compiling</h4>
+<p>The code is written in C++, not because it uses any fancy C++ stuff, I just like C++ better. I think I used a few GCC'isms too so that might get in the way if you don't use gcc (who doesn't?). Otherwise, untar the source into a directory and type make. To install just copy the file somewhere useful (along with chipdat.txt and pocket.msg).</p>
+<h4>Installing</h4>
+<p>I haven't make any install scripts or packages yet so you have to do it by hand. Don't worry, its real simple. Just put pocket (the executable) in a directory with chipdat.txt and pocket.msg.</p>
 </body>
 </html>
