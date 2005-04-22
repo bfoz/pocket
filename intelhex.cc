@@ -19,14 +19,16 @@
 namespace intelhex
 {
 
-	hex_data::hex_data()
+	#define	INH32M_HEADER	":020000040000FA"
+
+/*	hex_data::hex_data()
 	{
 		format = HEX_FORMAT_INHX8M;
 	}
-
+*/
 	//Extend the data block array by one element
 	//	and return a pointer to the new element
-	dblock* hex_data::new_block()
+	hex_data::dblock* hex_data::new_block()
 	{
 		dblock b;
 		blocks.push_back(b);
@@ -36,43 +38,125 @@ namespace intelhex
 	//Extend the data block array by one element
 	//	and return a pointer to the new element
 	//	Initialize the element with address and length
-	dblock* hex_data::add_block(uint16_t address, uint16_t length)
+	hex_data::dblock* hex_data::add_block(address_t address, size_type length, element fill)
 	{
 		dblock db;	//A list of pointers would be faster, but this isn't too bad
 		blocks.push_back(db);
 		blocks.back().first = address;
-		blocks.back().second.resize(length);
+		blocks.back().second.resize(length, fill);
 		return &blocks.back();
 	}
 
 	//Array access operator
 	//Assumes that the blocks have been sorted by address in ascending order
-	uint16_t &hex_data::operator[](uint16_t addr)
+	//	Sort order is maintained
+	hex_data::element &hex_data::operator[](hex_data::address_t addr)
 	{
+		if(blocks.size() == 0)	//Add a block if the sequence is empty
+			add_block(0,0);
+
 		//Start at the end of the list and find the first (last) block with an address
 		//	less than addr
-		lst_dblock::reverse_iterator i = blocks.rbegin();
+		reverse_iterator i = blocks.rbegin();
 		while( (i!=blocks.rend()) && (i->first > addr))
 			++i;
-		if(i==blocks.rend())	//If a suitable block wasn't found, return something
-			return blocks.begin()->second[0];
-		return i->second[addr - i->first];
+
+		element relative_addr = addr - i->first;
+		//If addr is outside of a block and not-adjacent to the end of any block add a new block
+		if( relative_addr > i->second.size() )
+			return add_block(addr,1)->second[0];
+		//If addr is adjacent to the end of the block resize it
+		if( relative_addr == i->second.size() )
+			i->second.resize(i->second.size()+1, 0xFF);
+
+		return i->second[relative_addr];
 	}
 
 	//	Delete all allocated memory
-	void hex_data::cleanup()
+	void hex_data::clear()
 	{
 		format = HEX_FORMAT_INHX8M;
 		blocks.clear();
 	}
 
+	//Add a new word to the end of the sequence
+	//	Assumes the sequence has been sorted
+	void hex_data::push_back(hex_data::element a)
+	{
+		if(blocks.size() == 0)	//Add a block if the sequence is empty
+			add_block(0,0);
+		blocks.back().second.push_back(a);	//Append the new word
+	}
+
+	hex_data::size_type hex_data::size()
+	{
+		size_type s=0;
+		
+		for(iterator i=blocks.begin(); i!=blocks.end(); ++i)
+			s += i->second.size();
+
+		return s;		
+	}
+
+	//Returns the number of populated elements with addresses less than addr
+	hex_data::size_type hex_data::size_below_addr(address_t addr)
+	{
+		size_type s=0;
+		
+		for(iterator i=blocks.begin(); i!=blocks.end(); ++i)
+			if( (i->first + i->second.size()) < addr)
+				s += i->second.size();
+			else if( i->first < addr )
+				s += addr - i->first;
+
+		return s;		
+	}
+
+	//number of words in [lo, hi)
+	hex_data::size_type hex_data::size_in_range(address_t lo, address_t hi)
+	{
+		size_type s=0;
+//		std::cout << __FUNCTION__ << ": lo = " << std::hex << lo << std::endl;
+//		std::cout << __FUNCTION__ << ": hi = " << std::hex << hi << std::endl;
+		
+		for(iterator i=blocks.begin(); i!=blocks.end(); ++i)
+			if( i->first >= lo )
+			{
+//				std::cout << __FUNCTION__ << ": i->first = " << std::hex << i->first << std::endl;
+//				std::cout << __FUNCTION__ << ": i->second.size() = " << std::hex << i->second.size() << std::endl;
+				if( (i->first + i->second.size()) < hi)
+					s += i->second.size();
+				else if( i->first < hi )
+					s += hi - i->first;
+			}
+
+		return s;		
+	}
+
+	//Return true if an element exists at addr
+	bool hex_data::isset(address_t addr)
+	{
+		//Start at the end of the list and find the first (last) block with an address
+		//	less than addr
+		reverse_iterator i = blocks.rbegin();
+		while( (i!=blocks.rend()) && (i->first > addr))
+			++i;
+
+		if( (addr - i->first) > i->second.size() )
+			return false;
+		else
+			return true;
+	}
+
 	//Load a hex file from disk
 	//Destroys any data that has already been loaded
-	bool	hex_data::load(const char *path)
+	bool hex_data::load(const char *path)
 	{
 		FILE	*fp;
-		unsigned int	hi, lo, address, count, rtype, i, j;
 		dblock	*db;		//Temporary pointer
+		unsigned int	hi, lo, address, count, rtype, i, j;
+		uint16_t	linear_address(0);
+		uint32_t	a;
 
 		if( (fp=fopen(path, "r"))==NULL )
 		{
@@ -80,7 +164,7 @@ namespace intelhex
 			return false;
 		}
 
-		cleanup();		//First, clean house
+		clear();		//First, clean house
 		
 		//Start parsing the file
 		while(!feof(fp))
@@ -102,7 +186,9 @@ namespace intelhex
 				switch(rtype)	//What type of record?
 				{
 					case 0: 	//Data block so store it
-						db = add_block(address, count);	//Make a data block
+						//Make a data block
+						a = (static_cast<uint32_t>(linear_address) << 16) + address;
+						db = add_block(a, count);
 						for(i=0; i<count; i++)				//Read all of the data bytes
 						{
 							fscanf(fp, "%2x", &lo);			//Low byte
@@ -113,8 +199,11 @@ namespace intelhex
 					case 1:	//EOF
 						break;
 					case 2:	//Segment address record (INHX32)
+						segment_addr_rec = true;
 						break;
 					case 4:	//Linear address record (INHX32)
+						linear_address = address;
+						linear_addr_rec = true;
 						break;
 				}
 				fscanf(fp,"%*[^\n]\n");		//Ignore the checksum and the newline
@@ -134,28 +223,79 @@ namespace intelhex
 	//Write all data to a file
 	void	hex_data::write(const char *path)
 	{
-		ofstream	ofs(path);
+		std::ofstream	ofs(path);
+		if(!ofs)
+		{
+			std::cerr << "Couldn't open the output file stream\n";
+			exit(1);
+		}
 		write(ofs);
+		ofs.close();
 	}
 
 	//Write all data to an output stream
-	void	hex_data::write(ostream &os)
+	void	hex_data::write(std::ostream &os)
 	{
 		uint8_t	checksum;
+		uint16_t	linear_address(0);
 
-		truncate(8);				//Truncate each record to length=8 (purely asthetic)
+		if(!os)
+		{
+			std::cerr << "Couldn't open the output file stream\n";
+			exit(1);
+		}
+
+		truncate(8);				//Truncate each record to length=8 (purely aesthetic)
 		blocks.sort();				//Sort the data blocks by address (ascending)
 
-		os.setf(ios::hex, ios::basefield);	//Set the stream to ouput hex instead of decimal
-		os.setf(ios::uppercase);				//Use uppercase hex notation
+		os.setf(std::ios::hex, std::ios::basefield);	//Set the stream to ouput hex instead of decimal
+		os.setf(std::ios::uppercase);				//Use uppercase hex notation
 		os.fill('0');								//Pad with zeroes
 		
-		for(lst_dblock::iterator i=blocks.begin(); i!=blocks.end(); i++)
+		//If we already know that this is an INHX32M file, start with a segment address record
+		//	otherwise check all of the blocks just to make sure
+		if( linear_addr_rec )
 		{
+			os << INH32M_HEADER;
+//			std::cout << __FUNCTION__ << ": linear_addr_rec == true\n";
+		}
+		else
+		{
+			for(iterator i=blocks.begin(); i!=blocks.end(); i++)
+			{
+				if(i->first & 0xFFFF0000)	//Check the upper 16 bits
+				{
+					linear_addr_rec = true;
+					os << INH32M_HEADER;
+//					std::cout << __FUNCTION__ << ": Found an 04 at " << i->first << std::endl;
+//					std::cout << __FUNCTION__ << ": i->first & 0xFFFF0000 == " << (i->first  & 0xFFFF0000) << std::endl;
+					break;	//Only need to find one
+				}
+			}
+		}
+
+		for(iterator i=blocks.begin(); i!=blocks.end(); i++)
+		{
+			//Check upper 16 bits of the block address for non-zero,
+			//	which indicates that a segment address record is needed
+			if( (i->first & 0xFFFF0000) != 0 )
+			{
+				//Has a record for this segment already been emitted?
+				if( i->first != linear_address )
+				{
+					//Emit a new segment address record
+					os << ":02000004";
+					os.width(4);
+					os << static_cast<uint16_t>(linear_address);	//Address
+					os << "FA" << std::endl;
+					linear_address = (i->first & 0xFFFF0000) >> 16;	//Update segment_address
+				}
+			}
 			checksum = 0;
 			os << ':';	//Every line begins with ':'
 			os.width(2);
 			os << i->second.size()*2;	//Record length
+			checksum += i->second.size()*2;
 			os.width(4);
 			os << static_cast<uint16_t>(i->first*2);	//Address
 			os << "00";											//Record type
@@ -165,27 +305,38 @@ namespace intelhex
 				os << (i->second[j] & 0x00FF);
 				os.width(2);
 				os << ((i->second[j]>>8) & 0x00FF);
-				checksum += i->second[j];
+				checksum += i->second[j] & 0x00FF;
+				checksum += (i->second[j]>>8) & 0x00FF;
 			}
+			checksum = 0 - checksum;
 			os.width(2);
 			os << static_cast<int>(checksum);	//Bogus checksum byte
-			os << endl;
+			os << std::endl;
 		}
 		os << ":00000001FF\n";			//EOF marker
 	}
 
 	//Truncate all of the blocks to a given length
-	void	hex_data::truncate(uint16_t len)
+	//	Maintains sort order
+	void	hex_data::truncate(hex_data::size_type len)
 	{
-		for(lst_dblock::iterator i=blocks.begin(); i!=blocks.end(); i++)
-			if(i->second.size() > len)
+		for(iterator i=blocks.begin(); i!=blocks.end(); i++)
+		{
+			if(i->second.size() > len)	//If the block is too long...
 			{
-				dblock db;
-				blocks.push_back(db);	//Append a new block
-				blocks.back().first = i->first + len;	//Give the new block an address
-				blocks.back().second.assign(&i->second[len], i->second.end());	//Insert the extra bytes into the new block
-				i->second.resize(len);	//Truncate the original block
+				//Insert a new block
+				iterator j(i);
+				j = blocks.insert(++j, dblock());
+				j->first = i->first + len;		//Give the new block an address
+				
+				//Make an interator that points to the first element to copy out of i->second
+				dblock::second_type::iterator k(i->second.begin());
+				advance(k, len);
+
+				j->second.assign(k, i->second.end());	//Assign the extra bytes to the new block
+				i->second.erase(k, i->second.end());	//Truncate the original block
 			}
+		}
 	}
 
 }

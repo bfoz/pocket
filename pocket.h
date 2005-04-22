@@ -126,9 +126,9 @@ namespace pocket
 		u_int8_t	pp_setvpp(char);								//Set Vpp pins
 		void		pp_writeprogram(intelhex::hex_data *,unsigned);	//Write program locations
 		void		pp_readprogram(intelhex::hex_data *, unsigned);
-		void		pp_read8words(intelhex::dblock *);					//Read 8 program words from the pic
+		void		pp_read8words(intelhex::hex_data::dblock *);					//Read 8 program words from the pic
 		void		pp_readeeprom(intelhex::hex_data *, unsigned);
-		void		pp_read8eeprom(intelhex::dblock *);
+		void		pp_read8eeprom(intelhex::hex_data::dblock *);
 		void		pp_readfuse(u_int16_t *, u_int16_t *);	//Read fuse and id words
 		u_int8_t	pp_blankcheck(u_int16_t);
 		u_int8_t	pp_bulkerase(u_int8_t, u_int16_t);

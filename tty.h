@@ -14,7 +14,7 @@
 
 #include <termios.h>
 
-#define	TTY_DEBUG
+//#define	TTY_DEBUG
 
 struct tty_t
 {
@@ -28,12 +28,16 @@ struct tty_t
 	int close();
 	int rawmode();
 	int reset();
+	bool flush();
+	void set_dtr();
+	void clear_dtr();
+
 	ssize_t read(void *, size_t);
 	//ssize_t read(unsigned char *);
-	u_int8_t read();
+	uint8_t read();
 	ssize_t read(u_int8_t *);
 	ssize_t write(const void *, size_t);
-	ssize_t write(char);
+	ssize_t write(const unsigned char);
 };
 
 //Allow for inlining
