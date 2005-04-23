@@ -160,7 +160,7 @@ namespace intelhex
 
 		if( (fp=fopen(path, "r"))==NULL )
 		{
-			printf("%s: Can't open %s\n", __FUNCTION__, path);
+//			printf("%s: Can't open %s\n", __FUNCTION__, path);
 			return false;
 		}
 

@@ -133,6 +133,7 @@ namespace kitsrus
 			switch(com->read())
 			{
 				case 'P':
+					std::cout << "\n";
 					return true;
 				case 'N':
 					std::cerr << __FUNCTION__ << ": Got N at address ";
@@ -148,7 +149,8 @@ namespace kitsrus
 					std::cerr << std::endl;
 					return false;
 				case 'Y':
-					std::cout << __FUNCTION__ << ": Got Y\n";
+//					std::cout << __FUNCTION__ << ": Got Y\n";
+					std::cout << ".";
 					for(i=0; i<(32/2); ++i)
 					{
 						com->write( (HexData[j] & 0xFF00) >> 8);

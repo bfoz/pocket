@@ -43,6 +43,7 @@ static	tty_t com;	//Device interface object
 
 //Commands
 #define	CMD_ERASE_CHIP	PP_BLANK
+#define	CMD_PROGRAM_ALL	0x08
 #define	CMD_PROGRAM_ROM	PP_PROGRAM
 #define	CMD_PROGRAM_EEPROM	PP_EEPROM
 #define	CMD_PROGRAM_CONFIG	PP_FUSES
@@ -58,6 +59,7 @@ static	std::string	PartName;
 //Argument style is similar to tar(1)
 //	k	Use Kitsrus protocol P018 (16 Aug 2004)
 // v	verify using pocketpro mode
+//	P	Program the ROM, config and EEPROM (in that order)
 //	R	program the ROM
 // r 	dump the pic to file specified by f
 // B 	bulk erase the pic
@@ -69,7 +71,7 @@ static	std::string	PartName;
 // c:	path to chip data file
 //	d:	path to programmer device
 //	p:	The part to program (ex. 16F877)
-#define	OPTIONS	"kevrbFf:Em:c:d:p:RBq"
+#define	OPTIONS	"bc:d:ef:km:p:qrvBEFPR"
 
 void display_usage()
 {
@@ -80,6 +82,7 @@ void display_usage()
 	std::cout << "   q   Be quiet. Useful when piping the output.\n";
 	std::cout << "\nCommands:\n";
 	std::cout << "NOTE: It can only do one command at a time\n";
+	std::cout << "   P   Program the ROM, config and EEPROM (in that order)\n";
 	std::cout << "   R   Program the ROM\n";
 	std::cout << "   r   Read the PIC into a file\n";
 	std::cout << "   B   Bulk erase the pic\n";
@@ -168,6 +171,9 @@ int main(int argc, char *argv[])
 			case	'v': //Verify
 				command = PP_VERIFY;
 				break;
+			case	'P':	//Program ROM, config and EEPROM
+				command = CMD_PROGRAM_ALL;
+				break;
 			case	'R':	//Program the ROM
 				command = CMD_PROGRAM_ROM;
 				break;
@@ -226,7 +232,7 @@ int main(int argc, char *argv[])
 	}
 
 	//If ROM, EEPROM or Fuses are being programmed load in the hex file
-	if( (command == CMD_PROGRAM_ROM) || (command == CMD_PROGRAM_EEPROM) || (command == CMD_PROGRAM_CONFIG) )
+	if( (command == CMD_PROGRAM_ALL) || (command == CMD_PROGRAM_ROM) || (command == CMD_PROGRAM_EEPROM) || (command == CMD_PROGRAM_CONFIG) )
 	{
 		if(!HexData.load(HexPath))
 		{
@@ -333,6 +339,27 @@ int main(int argc, char *argv[])
 
 		switch(command)
 		{
+			case	CMD_PROGRAM_ALL:
+				programmer.chip_power_on();		//Activate programming voltages
+				std::cout << "Programming " << programmer.get_rom_size() << " ROM words for " << PartName << std::endl;
+				if( !programmer.write_rom(HexData) )
+				{
+					std::cerr << "Error programming ROM\n";
+					programmer.hard_reset();		//Do a hard reset
+					exit(1);								// and then bail out
+				}
+				programmer.chip_power_off();		//Turn the chip off
+				
+				programmer.chip_power_on();		//Activate programming voltages
+				std::cout << "Programming Config for " << PartName << std::endl;
+				programmer.write_config(HexData);
+				programmer.chip_power_off();		//Turn the chip off
+
+				programmer.chip_power_on();		//Activate programming voltages
+				std::cout << "Programming EEPROM for " << PartName << std::endl;
+				programmer.write_eeprom(HexData);
+				programmer.chip_power_off();		//Turn the chip off
+				break;
 			case CMD_PROGRAM_ROM:
 				programmer.chip_power_on();		//Activate programming voltages
 				std::cout << "Programming " << programmer.get_rom_size() << " ROM words for " << PartName << std::endl;
