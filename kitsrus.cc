@@ -388,7 +388,7 @@ namespace kitsrus
 	bool kitsrus_t::get_chip_info(std::basic_ifstream<char> &in, std::string PartName)
 	{
 		std::string line;
-
+		
 		//Read each line and search it for the part name
 		while(in)
 		{
@@ -411,7 +411,7 @@ namespace kitsrus
 					}
 					line.clear();				//Discard the used line
 					std::getline(in, line);	//Get the next line in the record
-					line.replace(line.find('\r'),1,"");	//Ignore DOS newlines
+//					line.replace(line.find('\r'),1,"");	//Ignore DOS newlines
 					if(line.length() == 0)	//Records are terminated with a blank line
 						return true;
 				}
