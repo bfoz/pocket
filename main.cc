@@ -210,13 +210,6 @@ int main(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 	
-/*
-	hex_data	hex;
-	hex.load("test.hex");
-	hex.write("test2.hex");
-	exit(0);
-	*/
-	
 	//Bail out if a device path isn't available
 	if(DevicePath.length() == 0)
 	{
@@ -231,31 +224,32 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+	switch(command)
+	{
 	//If ROM, EEPROM or Fuses are being programmed load in the hex file
-	if( (command == CMD_PROGRAM_ALL) || (command == CMD_PROGRAM_ROM) || (command == CMD_PROGRAM_EEPROM) || (command == CMD_PROGRAM_CONFIG) )
-	{
-		if(!HexData.load(HexPath))
-		{
-			std::cerr << "Couldn't load hex file " << HexPath << std::endl;
-			exit(1);
-		}
-	}
-	
+		case CMD_PROGRAM_ALL:
+		case CMD_PROGRAM_ROM:
+		case CMD_PROGRAM_EEPROM:
+		case CMD_PROGRAM_CONFIG:
+			if(!HexData.load(HexPath))
+			{
+				std::cerr << "Couldn't load hex file " << HexPath << std::endl;
+				exit(1);
+			}
+			break;
 	//If ROM, EEPROM or Fuses are being read ensure a file name was provided
-	if( command == CMD_READ_ALL)
-	{
-		if(HexPath.length() == 0)
-		{
-			std::cerr << "Need a file to store the data in\n";
-			exit(1);
-		}
+		case CMD_READ_ALL:
+			if(HexPath.length() == 0)
+			{
+				std::cerr << "Need a file to store the data in\n";
+				exit(1);
+			}		
 	}
 	
 	if(kitsrus)
 	{
 		//The Kitsrus DIY programmers require a chipinfo file since they don't store the info internally
 		std::basic_ifstream<char>	ChipInfo(ChipInfoPath.c_str());
-		
 		if(!ChipInfo)
 		{
 			std::cerr << "The Kitsrus programmers require a chip info file\n";
