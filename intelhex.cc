@@ -116,21 +116,48 @@ namespace intelhex
 	hex_data::size_type hex_data::size_in_range(address_t lo, address_t hi)
 	{
 		size_type s=0;
-//		std::cout << __FUNCTION__ << ": lo = " << std::hex << lo << std::endl;
-//		std::cout << __FUNCTION__ << ": hi = " << std::hex << hi << std::endl;
 		
 		for(iterator i=blocks.begin(); i!=blocks.end(); ++i)
-			if( i->first >= lo )
+		{
+			if( i->first < lo )
 			{
-//				std::cout << __FUNCTION__ << ": i->first = " << std::hex << i->first << std::endl;
-//				std::cout << __FUNCTION__ << ": i->second.size() = " << std::hex << i->second.size() << std::endl;
+				const size_type a = i->first + i->second.size();
+				if( a >= lo )
+					s += a  - lo;
+			}
+			else
+			{
 				if( (i->first + i->second.size()) < hi)
 					s += i->second.size();
 				else if( i->first < hi )
 					s += hi - i->first;
 			}
+		}
 
 		return s;		
+	}
+
+	//Return the max address of all of the set words with addresses less than or equal to hi
+	hex_data::address_t hex_data::max_addr_below(address_t hi)
+	{
+		address_t s=0;
+		
+//		std::cout << __FUNCTION__ << ": hi = " << hi << std::endl;
+		
+		for(iterator i=blocks.begin(); i!=blocks.end(); ++i)
+		{
+			if( i->first <= hi)
+			{
+				const address_t a = i->first + i->second.size() - 1;	//Max address of this block
+//				std::cout << __FUNCTION__ << ": a = " << a << std::endl;
+				if( a > s )
+					s = a;
+			}
+		}
+		if( s > hi )
+			return hi;
+		else
+			return s;		
 	}
 
 	//Return true if an element exists at addr
@@ -175,11 +202,6 @@ namespace intelhex
 				fscanf(fp, "%4x", &address);		//Read in address
 				fscanf(fp, "%2x", &rtype);			//Read type
 
-	/*
-				printf("Count: %02X\t", count);
-				cout << "intelhex::load address = " << hex << address << endl;
-				printf("Type: %02X\n", rtype);
-				*/
 				count /= 2;								//Convert byte count to word count
 				address /= 2;							//Byte address to word address
 				
@@ -202,8 +224,16 @@ namespace intelhex
 						segment_addr_rec = true;
 						break;
 					case 4:	//Linear address record (INHX32)
-						linear_address = address;
-						linear_addr_rec = true;
+						if(address == 0x0000)
+						{
+							fscanf(fp, "%4x", &linear_address);		//Get the new linear address
+							linear_addr_rec = true;
+						}
+						else
+						{
+							//FIXME	There's a problem
+						}
+
 						break;
 				}
 				fscanf(fp,"%*[^\n]\n");		//Ignore the checksum and the newline
@@ -281,13 +311,14 @@ namespace intelhex
 			if( (i->first & 0xFFFF0000) != 0 )
 			{
 				//Has a record for this segment already been emitted?
-				if( i->first != linear_address )
+				if( static_cast<uint16_t>(i->first >> 16) != linear_address )
 				{
 					//Emit a new segment address record
 					os << ":02000004";
 					os.width(4);
-					os << static_cast<uint16_t>(linear_address);	//Address
-					os << "FA" << std::endl;
+					os << linear_address;	//Address
+					os << (0x01 + ~(0x06 + ((linear_address>>8)&0xFF) + (linear_address&0xFF)));
+					os << std::endl;
 					linear_address = (i->first & 0xFFFF0000) >> 16;	//Update segment_address
 				}
 			}
@@ -298,6 +329,8 @@ namespace intelhex
 			checksum += i->second.size()*2;
 			os.width(4);
 			os << static_cast<uint16_t>(i->first*2);	//Address
+			checksum += static_cast<uint8_t>(i->first & 0x00FF);
+			checksum += static_cast<uint8_t>(i->first >> 8);
 			os << "00";											//Record type
 			for(int j=0; j<i->second.size(); j++)	//Store the data bytes, LSB first, ASCII HEX
 			{
@@ -305,12 +338,11 @@ namespace intelhex
 				os << (i->second[j] & 0x00FF);
 				os.width(2);
 				os << ((i->second[j]>>8) & 0x00FF);
-				checksum += i->second[j] & 0x00FF;
-				checksum += (i->second[j]>>8) & 0x00FF;
+				checksum += static_cast<uint8_t>(i->second[j] & 0x00FF);
+				checksum += static_cast<uint8_t>(i->second[j] >> 8);
 			}
-			checksum = 0 - checksum;
 			os.width(2);
-			os << static_cast<int>(checksum);	//Bogus checksum byte
+			os << static_cast<uint8_t>(0x01 + ~checksum);	//Bogus checksum byte
 			os << std::endl;
 		}
 		os << ":00000001FF\n";			//EOF marker

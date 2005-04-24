@@ -120,7 +120,7 @@ namespace kitsrus
 		intelhex::hex_data::size_type size;
 		
 		//Figure out how many ROM words need to be written
-		size = HexData.size_below_addr(info.rom_size);
+		size = HexData.max_addr_below(info.rom_size-1);
 //		std::cout << __FUNCTION__ << ": size = " << size << std::endl;
 
 		//Send program rom command
@@ -150,7 +150,7 @@ namespace kitsrus
 					return false;
 				case 'Y':
 //					std::cout << __FUNCTION__ << ": Got Y\n";
-					std::cout << ".";
+					std::cout << "." << std::flush;
 					for(i=0; i<(32/2); ++i)
 					{
 						com->write( (HexData[j] & 0xFF00) >> 8);
@@ -191,9 +191,10 @@ namespace kitsrus
 			switch(com->read())
 			{
 				case 'P':
+					std::cout << "\n";
 					return true;
 				case 'Y':
-//					std::cout << __FUNCTION__ << ": Got Y\n";
+					std::cout << "." << std::flush;
 					com->write( HexData[j] & 0x00FF);
 //					std::cout << __FUNCTION__ << ": wrote " << std::hex << HexData[j] << "\n";
 					++j;

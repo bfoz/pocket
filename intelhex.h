@@ -55,13 +55,14 @@ namespace intelhex
 		size_type	size();
 		size_type	size_below_addr(address_t);
 		size_type	size_in_range(address_t, address_t);	//number of words in [lo, hi)
+		address_t	max_addr_below(address_t);
 		
 		bool	isset(address_t);
 		
 		element	&operator[](address_t);	//Array access operator
 
 		dblock	*new_block();					//Extend the array by one block
-		dblock	*add_block(address_t, size_type, element = 0xFF);	//Append a new block with address/length
+		dblock	*add_block(address_t, size_type, element = 0xFFFF);	//Append a new block with address/length
 		bool		load(const char *);			//Load a hex file from disk
 		bool		load(const std::string &s) {return load(s.c_str());}	//Load a hex file from disk
 		void		write(const char *);			//Save hex data to a hex file

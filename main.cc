@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
 		std::cerr << "Couldn't register exit handler. Bailing out.\n";
 		exit(1);
 	}
-
+	
 	//Process command line
 	while((ch = getopt(argc, argv, OPTIONS)) != -1)
 		switch(ch)
@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
 		}
 	argc -= optind;
 	argv += optind;
-	
+
 	//Bail out if a device path isn't available
 	if(DevicePath.length() == 0)
 	{
@@ -335,7 +335,7 @@ int main(int argc, char *argv[])
 		{
 			case	CMD_PROGRAM_ALL:
 				programmer.chip_power_on();		//Activate programming voltages
-				std::cout << "Programming " << programmer.get_rom_size() << " ROM words for " << PartName << std::endl;
+				std::cout << "Programming " << HexData.size_below_addr(programmer.get_rom_size()) << " ROM words for " << PartName << std::endl;
 				if( !programmer.write_rom(HexData) )
 				{
 					std::cerr << "Error programming ROM\n";
@@ -356,7 +356,7 @@ int main(int argc, char *argv[])
 				break;
 			case CMD_PROGRAM_ROM:
 				programmer.chip_power_on();		//Activate programming voltages
-				std::cout << "Programming " << programmer.get_rom_size() << " ROM words for " << PartName << std::endl;
+				std::cout << "Programming " << HexData.size_below_addr(programmer.get_rom_size()) << " ROM words for " << PartName << std::endl;
 				if( !programmer.write_rom(HexData) )
 				{
 					std::cerr << "Error programming ROM\n";
