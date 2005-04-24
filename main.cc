@@ -121,6 +121,21 @@ void handle_exit()
 	std::cout << "Goodbye!\r\n";
 }
 
+void do_eeprom_write(kitsrus::kitsrus_t &programmer, intelhex::hex_data &HexData)
+{
+	const intelhex::hex_data::size_type num_eeprom_bytes = HexData.size_in_range(programmer.get_eeprom_start(), programmer.get_eeprom_start() + programmer.get_eeprom_size());
+
+	if(num_eeprom_bytes > 0)
+	{
+		programmer.chip_power_on();		//Activate programming voltages
+		std::cout << "Programming " << num_eeprom_bytes << " EEPROM bytes for " << PartName << std::endl;
+		programmer.write_eeprom(HexData);
+		programmer.chip_power_off();		//Turn the chip off
+	}
+	else
+		std::cout << "No EEPROM bytes in file\n";
+}
+
 int main(int argc, char *argv[])
 {
 	FILE *fp;
@@ -349,10 +364,7 @@ int main(int argc, char *argv[])
 				programmer.write_config(HexData);
 				programmer.chip_power_off();		//Turn the chip off
 
-				programmer.chip_power_on();		//Activate programming voltages
-				std::cout << "Programming EEPROM for " << PartName << std::endl;
-				programmer.write_eeprom(HexData);
-				programmer.chip_power_off();		//Turn the chip off
+				do_eeprom_write(programmer, HexData);
 				break;
 			case CMD_PROGRAM_ROM:
 				programmer.chip_power_on();		//Activate programming voltages
@@ -366,10 +378,7 @@ int main(int argc, char *argv[])
 				programmer.chip_power_off();		//Turn the chip off
 				break;
 			case CMD_PROGRAM_EEPROM:
-				programmer.chip_power_on();		//Activate programming voltages
-				std::cout << "Programming EEPROM for " << PartName << std::endl;
-				programmer.write_eeprom(HexData);
-				programmer.chip_power_off();		//Turn the chip off
+				do_eeprom_write(programmer, HexData);
 				break;
 			case CMD_PROGRAM_CONFIG:
 				programmer.chip_power_on();		//Activate programming voltages
