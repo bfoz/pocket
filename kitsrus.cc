@@ -133,7 +133,7 @@ namespace kitsrus
 			switch(com->read())
 			{
 				case 'P':
-					std::cout << "\n";
+					std::cout << ".\n";
 					return true;
 				case 'N':
 					std::cerr << __FUNCTION__ << ": Got N at address ";
@@ -149,12 +149,12 @@ namespace kitsrus
 					std::cerr << std::endl;
 					return false;
 				case 'Y':
-//					std::cout << __FUNCTION__ << ": Got Y\n";
 					std::cout << "." << std::flush;
 					for(i=0; i<(32/2); ++i)
 					{
-						com->write( (HexData[j] & 0xFF00) >> 8);
-						com->write( HexData[j] & 0x00FF);
+						const intelhex::hex_data::element a = HexData.get(j, info.get_blank_value());
+						com->write( (a & 0xFF00) >> 8);
+						com->write( a & 0x00FF);
 						++j;
 					}
 					break;
@@ -191,14 +191,14 @@ namespace kitsrus
 			switch(com->read())
 			{
 				case 'P':
-					std::cout << "\n";
+					std::cout << ".\n";
 					return true;
 				case 'Y':
 					std::cout << "." << std::flush;
-					com->write( HexData[j] & 0x00FF);
+					com->write( HexData.get(j, 0xFF) & 0x00FF);
 //					std::cout << __FUNCTION__ << ": wrote " << std::hex << HexData[j] << "\n";
 					++j;
-					com->write( HexData[j] & 0x00FF);
+					com->write( HexData.get(j, 0xFF) & 0x00FF);
 //					std::cout << __FUNCTION__ << ": wrote " << std::hex << HexData[j] << "\n";
 					++j;
 					break;

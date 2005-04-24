@@ -67,7 +67,25 @@ namespace intelhex
 			return add_block(addr,1)->second[0];
 		//If addr is adjacent to the end of the block resize it
 		if( relative_addr == i->second.size() )
-			i->second.resize(i->second.size()+1, 0xFF);
+			i->second.resize(i->second.size()+1, 0xFFFF);
+
+		return i->second[relative_addr];
+	}
+
+	//FIXME	Nasty kludge
+	//	I should really create an iterator class to handle this
+	hex_data::element	hex_data::get(address_t addr, element blank)
+	{
+		//Start at the end of the list and find the first (last) block with an address
+		//	less than addr
+		reverse_iterator i = blocks.rbegin();
+		while( (i!=blocks.rend()) && (i->first > addr))
+			++i;
+
+		element relative_addr = addr - i->first;
+		//If addr is outside of a block and not-adjacent to the end of any block add a new block
+		if( relative_addr > i->second.size() )
+			return blank;
 
 		return i->second[relative_addr];
 	}

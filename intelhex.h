@@ -39,14 +39,16 @@ namespace intelhex
 		typedef	lst_dblock::iterator	iterator;
 		typedef	lst_dblock::reverse_iterator	reverse_iterator;
 		typedef	data_container::size_type	size_type;
-		
+	private:		
 		char	format;					//Format of the parsed file (necessary?)
 		bool	segment_addr_rec;		//Uses/Has a segment address record
 		bool	linear_addr_rec;		//Uses/Has a linear address record
+	public:
 		lst_dblock	blocks;			//List of data blocks
 											//I used a list instead of a vector since
 											//	the data set gets sorted a few times
-		
+
+	public:
 		hex_data() : segment_addr_rec(false), linear_addr_rec(false) {}
 		iterator	begin() { return blocks.begin(); }
 		iterator	end() { return blocks.end(); }
@@ -60,7 +62,8 @@ namespace intelhex
 		bool	isset(address_t);
 		
 		element	&operator[](address_t);	//Array access operator
-
+		element	get(address_t, element);	//FIXME	Nasty kludge
+		
 		dblock	*new_block();					//Extend the array by one block
 		dblock	*add_block(address_t, size_type, element = 0xFFFF);	//Append a new block with address/length
 		bool		load(const char *);			//Load a hex file from disk

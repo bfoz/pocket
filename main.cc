@@ -116,7 +116,7 @@ void handle_exit()
 		com.clear_dtr();
 		com.close();
 		Pocket.close();
-		std::cout << "Closed device " << DevicePath << "\r\n";
+//		std::cout << "Closed device " << DevicePath << "\r\n";
 	}
 	std::cout << "Goodbye!\r\n";
 }
@@ -262,8 +262,8 @@ int main(int argc, char *argv[])
 			std::cerr << "Had trouble getting the chip info for part " << PartName << std::endl;
 			exit(1);
 		}
-		else
-			std::cout << "Found the chip info for the " << PartName << std::endl;
+//		else
+//			std::cout << "Found the chip info for the " << PartName << std::endl;
 		ChipInfo.close();		//Close the file stream
 		
 		if( (com.open(DevicePath.c_str(), TTY_OPEN_FLAGS))==-1 )
@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
 			exit(1);
 		}
 */	
-		std::cout << "Opened device " << DevicePath << std::endl;
+//		std::cout << "Opened device " << DevicePath << std::endl;
 		com.rawmode();		//Set the terminal to raw mode
 		if(!com.flush())		//Just to make sure
 		{
@@ -296,7 +296,7 @@ int main(int argc, char *argv[])
 		//Try a soft reset
 		if(!programmer.soft_reset())
 		{
-			std::cout << "Soft reset failed\nTrying a hard reset\n";
+//			std::cout << "Soft reset failed\nTrying a hard reset\n";
 			
 			//FIXME This won't work for Kit149 (A or B)
 			if(!programmer.hard_reset())
@@ -311,7 +311,7 @@ int main(int argc, char *argv[])
 			std::cerr << "Couldn't enter Command Mode\n";
 			exit(1);
 		}
-		std::cout << "Entered Command Mode\n";
+//		std::cout << "Entered Command Mode\n";
 		
 		//Check the protocol version
 		std::string protocol = programmer.get_protocol();
