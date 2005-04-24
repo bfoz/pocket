@@ -341,8 +341,10 @@ namespace intelhex
 				checksum += static_cast<uint8_t>(i->second[j] & 0x00FF);
 				checksum += static_cast<uint8_t>(i->second[j] >> 8);
 			}
+			checksum = 0x01 + ~checksum;
 			os.width(2);
-			os << static_cast<uint8_t>(0x01 + ~checksum);	//Bogus checksum byte
+			//***	OSX (or maybe GCC) seems unable to handle uint8_t arguments to a stream
+			os << static_cast<uint16_t>(checksum);	//Bogus checksum byte
 			os << std::endl;
 		}
 		os << ":00000001FF\n";			//EOF marker
