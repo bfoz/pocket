@@ -81,13 +81,13 @@ void display_usage()
 	std::cout << "   f   Output file path needed by some commands. Use '-' for stdout.\n";
 	std::cout << "   q   Be quiet. Useful when piping the output.\n";
 	std::cout << "   d   The programmer device node (ex. /dev/tty.usbserial-1B1)\n";
-	std::cout << "   p   The name of the part to be programmed (ex. PIC16F877)\n";
+	std::cout << "   p   The name of the part to be programmed (ex. 16F877)\n";
 	std::cout << "\nCommands:\n";
 	std::cout << "NOTE: It can only do one command at a time\n";
 	std::cout << "   P   Program the ROM, config and EEPROM (in that order)\n";
 	std::cout << "   R   Program the ROM\n";
 	std::cout << "   r   Read the PIC into a file\n";
-	std::cout << "   B   Bulk erase the pic\n";
+	std::cout << "   B   Bulk erase the pic (can be used with P)\n";
 	std::cout << "   b   Blank check\n";
 	std::cout << "   F   Write config bits\n";
 	std::cout << "   E   Write EEPROM\n";
