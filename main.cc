@@ -80,6 +80,8 @@ void display_usage()
 	std::cout << "   k   Use Kitsrus protocol P018 (16 Aug 2004)\n";
 	std::cout << "   f   Output file path needed by some commands. Use '-' for stdout.\n";
 	std::cout << "   q   Be quiet. Useful when piping the output.\n";
+	std::cout << "   d   The programmer device node (ex. /dev/tty.usbserial-1B1)\n";
+	std::cout << "   p   The name of the part to be programmed (ex. PIC16F877)\n";
 	std::cout << "\nCommands:\n";
 	std::cout << "NOTE: It can only do one command at a time\n";
 	std::cout << "   P   Program the ROM, config and EEPROM (in that order)\n";
@@ -143,6 +145,7 @@ int main(int argc, char *argv[])
 	char s[2];
 	bool	done = false;
 	bool	kitsrus = false;	//true if kitsrus protocol mode
+	bool	erase_first = false;
 	struct sigaction	sact;
 	char	path[256];							//Path
 	int	ch, n;
@@ -179,6 +182,7 @@ int main(int argc, char *argv[])
 				break;
 			case	'B':	//Bulk erase the chip
 				command = CMD_ERASE_CHIP;
+				erase_first = true;
 				break;
 			case	'b':	//Blank check
 				command = PP_BLANKCHECK;
@@ -349,6 +353,13 @@ int main(int argc, char *argv[])
 		switch(command)
 		{
 			case	CMD_PROGRAM_ALL:
+				if(erase_first)
+				{
+					programmer.chip_power_on();		//Activate programming voltages
+					programmer.erase_chip();
+					programmer.chip_power_off();		//Turn the chip off
+					std::cout << "Erased " << PartName << std::endl;
+				}
 				programmer.chip_power_on();		//Activate programming voltages
 				std::cout << "Programming " << HexData.size_below_addr(programmer.get_rom_size()) << " ROM words for " << PartName << std::endl;
 				if( !programmer.write_rom(HexData) )
