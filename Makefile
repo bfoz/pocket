@@ -7,7 +7,7 @@ MV = mv
 RM = -rm -rf
 CC = g++
 
-INCDIRS += -I/usr/local/include -I/usr/include/gcc/darwin/3.3/c++
+INCDIRS += -I/usr/local/include -I/usr/include/gcc/darwin/default
 #INCDIRS += -I/usr/local/include -I/usr/include/gcc/darwin/3.3/c++
 LIBDIRS += -L/usr/local/lib
 
