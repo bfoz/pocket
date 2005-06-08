@@ -45,12 +45,24 @@ namespace kitsrus
 	}
 
 	//Do a hard reset of the device
-	//FIXME This won't work for Kit149 (A or B)
 	bool kitsrus_t::hard_reset()
 	{
-		com->set_dtr();
-		for(int i=0; i<10000; ++i) {};	//Delay
-		com->clear_dtr();
+		//Set DTR high
+		//Invert reset logic if using a K149
+		if( (firmware==KIT_149A) || (firmware==KIT_149B) )
+			com->clear_dtr();	//Inverted
+		else		
+			com->set_dtr();	//Normal
+
+		usleep(1);								//Delay
+
+		//Set DTR low
+		//Invert reset logic if using a K149
+		if( (firmware==KIT_149A) || (firmware==KIT_149B) )
+			com->set_dtr();	//Inverted
+		else		
+			com->clear_dtr();	//Normal
+
 		if( com->read()=='B' )
 		{
 			com->read();
@@ -120,7 +132,7 @@ namespace kitsrus
 		intelhex::hex_data::size_type size;
 		
 		//Figure out how many ROM words need to be written
-		size = HexData.max_addr_below(info.rom_size-1);
+		size = 1 + HexData.max_addr_below(info.rom_size-1);
 //		std::cout << __FUNCTION__ << ": size = " << size << std::endl;
 
 		//Send program rom command
@@ -149,14 +161,16 @@ namespace kitsrus
 					std::cerr << std::endl;
 					return false;
 				case 'Y':
-					std::cout << "." << std::flush;
 					for(i=0; i<(32/2); ++i)
 					{
+//					std::cout << __FUNCTION__ << ": Pre get\n";
 						const intelhex::hex_data::element a = HexData.get(j, info.get_blank_value());
+//					std::cout << __FUNCTION__ << ": " << std::hex << a << " @ " << std::hex << j << "\n";
 						com->write( (a & 0xFF00) >> 8);
 						com->write( a & 0x00FF);
 						++j;
 					}
+					std::cout << "." << std::flush;
 					break;
 				default:
 					std::cerr << __FUNCTION__ << ": Got unexpected character\n";
@@ -165,21 +179,32 @@ namespace kitsrus
 		}
 	}
 
+//#define	WRITE_EEPROM_DEBUG
 	bool kitsrus_t::write_eeprom(intelhex::hex_data &HexData)
 	{
 		uint8_t	c;
 		uint8_t i;
 		intelhex::hex_data::address_t	j(info.get_eeprom_start());
+		intelhex::hex_data::address_t	eeprom_end;
 		uint16_t k;
 		intelhex::hex_data::size_type size;
 		
 		//Ideally we would figure out how many ROM words are going to be written
 		//	and then write only that. But, to make things simpler we'll just write
 		//	to all of the ROM.
-//		std::cout << __FUNCTION__ << ": eeprom_start = " << std::hex << j << std::endl;
-//		std::cout << __FUNCTION__ << ": eeprom_size = " << std::hex << info.eeprom_size << std::endl;
+#if defined(WRITE_EEPROM_DEBUG)
+		std::cout << __FUNCTION__ << ": eeprom_start = " << std::hex << j << std::endl;
+		std::cout << __FUNCTION__ << ": eeprom_size = " << std::hex << info.eeprom_size << std::endl;
+#endif
 		size = HexData.size_in_range(j, info.get_eeprom_start() + info.eeprom_size);
-//		std::cout << __FUNCTION__ << ": size = " << size << std::endl;
+		//Make size an even number
+		if( (size % 2) != 0 )
+			++size;
+		eeprom_end = j + size - 1;
+#if defined(WRITE_EEPROM_DEBUG)
+		std::cout << __FUNCTION__ << ": size = " << size << std::endl;
+		std::cout << __FUNCTION__ << ": eeprom_end = " << std::hex << eeprom_end << std::endl;
+#endif
 
 		//Send program rom command
 		com->write(CMD_WRITE_EEPROM);
@@ -193,13 +218,19 @@ namespace kitsrus
 				case 'P':
 					std::cout << ".\n";
 					return true;
-				case 'Y':
+				case 'Y':			
+#if !defined(WRITE_EEPROM_DEBUG)
 					std::cout << "." << std::flush;
+#endif
 					com->write( HexData.get(j, 0xFF) & 0x00FF);
-//					std::cout << __FUNCTION__ << ": wrote " << std::hex << HexData[j] << "\n";
+#if defined(WRITE_EEPROM_DEBUG)
+					std::cout << __FUNCTION__ << ": wrote " << std::hex << HexData[j] << "\n";
+#endif
 					++j;
 					com->write( HexData.get(j, 0xFF) & 0x00FF);
-//					std::cout << __FUNCTION__ << ": wrote " << std::hex << HexData[j] << "\n";
+#if defined(WRITE_EEPROM_DEBUG)
+					std::cout << __FUNCTION__ << ": wrote " << std::hex << HexData[j] << "\n";
+#endif
 					++j;
 					break;
 				default:
@@ -212,6 +243,9 @@ namespace kitsrus
 	void kitsrus_t::write_config(intelhex::hex_data &HexData)
 	{
 		std::vector<uint8_t> tmp_config(22, 0xFF);
+		
+//		std::cout << __FUNCTION__ << std::endl;
+		
 		intelhex::hex_data::address_t	i;
 		if( info.is14bit() )
 		{
@@ -248,7 +282,9 @@ namespace kitsrus
 		{
 			com->write(tmp_config[i]);
 		}
+//		std::cout << __FUNCTION__ << "1" << std::endl;
 		com->read();	//Throw away the ack
+//		std::cout << __FUNCTION__ << "2" << std::endl;
 	}
 
 	void kitsrus_t::write_calibration()
@@ -422,4 +458,14 @@ namespace kitsrus
 		}
 		return false;
 	}
+	
+	//Ugly kludge to work around the K149 reset logic
+	//	This function is only used to set the firmware type for reset purposes
+	//	Once the programmer has been reset, get_version() should be used to get the real
+	//		firmware type
+	void kitsrus_t::set_149()
+	{
+		firmware = KIT_149A;
+	}
+
 }	//namespace pocket
