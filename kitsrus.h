@@ -110,6 +110,7 @@ namespace kitsrus
 		rom_size_type	get_rom_size() {return info.rom_size; }
 		eeprom_size_type	get_eeprom_size() {return info.eeprom_size; }
 		uint32_t	get_eeprom_start() {return info.get_eeprom_start(); }
+		void	set_149();	//Ugly kludge to work around the K149 reset logic
 	};
 
 }	//namespace kitsrus
