@@ -16,6 +16,7 @@
 
 #include <iostream>
 
+#include <getopt.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -49,12 +50,16 @@ static	tty_t com;	//Device interface object
 #define	CMD_PROGRAM_CONFIG	PP_FUSES
 //#define	CMD_READ_ROM	0xFF
 #define	CMD_READ_ALL	PP_READ
+#define	CMD_UPDATE_INFO	0x09
+#define	CMD_CLEAR_INFO		0x0A
 
 static	char	msgpath[256] = "pocket.msg";
 static	std::string	ChipInfoPath = "chipinfo.cid";
 static	std::string	DevicePath;
 static	std::string	HexPath;
 static	std::string	PartName;
+static	std::string	UpdatePath;
+static	std::string	UpdateURL = "http://bfoz.net/projects/pocket/PartsDB/export.php?format=extattr";
 
 //Argument style is similar to tar(1)
 //	k	Use Kitsrus protocol P018 (16 Aug 2004)
@@ -73,29 +78,66 @@ static	std::string	PartName;
 //	p:	The part to program (ex. 16F877)
 #define	OPTIONS	"bc:d:ef:km:p:qrvBEFPR"
 
+#define	OPT_VAL_UPDATE			1
+#define	OPT_VAL_UPDATE_FILE	2
+#define	OPT_VAL_UPDATE_URL	3
+#define	OPT_VAL_CLEAR_INFO	4
+#define	OPT_VAL_NO_UPDATE		5
+#define	OPT_VAL_KIT149			6
+
+static int option_val;
+static struct option longopts[] = {
+	{"kitsrus",	no_argument,			NULL, 'k'},
+	{"file",		required_argument,	NULL, 'f'},
+	{"chipinfofile",		required_argument,	NULL, 'c'},
+	{"quiet",	no_argument,			NULL, 'q'},
+	{"device",	required_argument,	NULL, 'd'},
+	{"part",		required_argument,	NULL, 'p'},
+	{"kit149",	no_argument,			&option_val, OPT_VAL_KIT149},
+	{"program",	no_argument,			NULL, 'P'},
+	{"writerom",no_argument,			NULL, 'R'},
+	{"read",		no_argument,			NULL,	'r'},
+	{"erase",	no_argument,			NULL, 'B'},
+	{"blankcheck",	no_argument,		NULL, 'b'},
+	{"writeconfig",	no_argument,	NULL, 'F'},
+	{"writeeeprom",	no_argument,	NULL, 'E'},
+	{"verify",			no_argument,	NULL, 'v'},
+	{"update",		no_argument,		&option_val, OPT_VAL_UPDATE},
+	{"update_file",required_argument,	&option_val, OPT_VAL_UPDATE_FILE},
+	{"update_url",	required_argument,	&option_val, OPT_VAL_UPDATE_URL},
+	{"clear_info",	required_argument,	&option_val, OPT_VAL_CLEAR_INFO},
+	{"no_update",	no_argument,	&option_val, OPT_VAL_NO_UPDATE},
+	{ NULL, 0, NULL, 0}
+};
+
 void display_usage()
 {
-	std::cout << "\n./pocket [command] [-k] [-q] [-f <file name>] [-c <chip info file>] [-d <device>] [-p <part name>]\n";
+	std::cout << "\n./pocket [args] [command]\n";
 	std::cout << "\nArguments:\n";
-	std::cout << "   k   Use Kitsrus protocol P018 (16 Aug 2004)\n";
-	std::cout << "   f   Output file path needed by some commands. Use '-' for stdout.\n";
-	std::cout << "   q   Be quiet. Useful when piping the output.\n";
-	std::cout << "   d   The programmer device node (ex. /dev/tty.usbserial-1B1)\n";
-	std::cout << "   p   The name of the part to be programmed (ex. 16F877)\n";
+	std::cout << "   -k        --kitsrus     Use Kitsrus protocol (>= P018)\n";
+	std::cout << "   -q        --quiet       Be quiet. Useful when piping the output.\n";
+	std::cout << "   -f PATH   --file PATH   File path needed by some commands. Use '-' for stdout\n";
+	std::cout << "   -d PATH   --device PATH Programmer device node (ex. /dev/tty.usbserial-1B1)\n";
+	std::cout << "   -p NAME   --part NAME   Name of the part to be programmed (ex. 16F877)\n";
+	std::cout << "             --kit149      Enable Kit149 compatibility (if autodetect fails)\n";
 	std::cout << "\nCommands:\n";
 	std::cout << "NOTE: It can only do one command at a time\n";
-	std::cout << "   P   Program the ROM, config and EEPROM (in that order)\n";
-	std::cout << "   R   Program the ROM\n";
-	std::cout << "   r   Read the PIC into a file\n";
-	std::cout << "   B   Bulk erase the pic (can be used with P)\n";
-	std::cout << "   b   Blank check\n";
-	std::cout << "   F   Write config bits\n";
-	std::cout << "   E   Write EEPROM\n";
-	std::cout << "   v   Verify against a hex file\n";
-//	std::cout << "c	Path to the chip info data file\n";
-//	std::cout << "d	Programmer device (ex. /dev/cuaa0)\n";
-//	std::cout << "p	The part to program (ex. 16F877)\n";
-//	std::cout << "m	path to message file (pocket only)\n";
+	std::cout << "   -P   --program     Program the ROM, config and EEPROM (in that order)\n";
+	std::cout << "   -R   --writerom    Program the ROM\n";
+	std::cout << "   -r   --read        Read the PIC into a file\n";
+	std::cout << "   -B   --erase       Bulk erase the pic (can be used with -P,--program)\n";
+	std::cout << "   -b   --blankcheck  Blank check\n";
+	std::cout << "   -F   --writeconfig Write config bits\n";
+	std::cout << "   -E   --writeeeprom Write EEPROM\n";
+	std::cout << "   -v   --verify      Verify against a hex file\n";
+	std::cout << "\nUpdate Chipinfo Commands:\n";
+	std::cout << "NOTE: These commands operate on the info for all parts unless a part is \n";
+	std::cout << "      specified using -p or --part.\n";
+	std::cout << "   --update           Update chip info for all parts\n";
+	std::cout << "   --update_file PATH Update chipinfo from the specified file\n";
+	std::cout << "   --update_url URL   Update chipinfo from the specified URL\n";
+	std::cout << "   --clear_info       Clear all stored chipinfo\n";
+	std::cout << "   --no_update        Disable automatic retrieval of needed chipinfo\n";
 	std::cout << "\nCopyright 2001-2005 Brandon Fosdick (BSD License)\n\n";
 }
 
@@ -146,6 +188,7 @@ int main(int argc, char *argv[])
 	bool	done = false;
 	bool	kitsrus = false;	//true if kitsrus protocol mode
 	bool	erase_first = false;
+	bool	no_update = false;			//true if automatic update has been disabled
 	struct sigaction	sact;
 	char	path[256];							//Path
 	int	ch, n;
@@ -174,7 +217,7 @@ int main(int argc, char *argv[])
 	}
 	
 	//Process command line
-	while((ch = getopt(argc, argv, OPTIONS)) != -1)
+	while((ch = getopt_long(argc, argv, OPTIONS, longopts, NULL)) != -1)
 		switch(ch)
 		{
 			case	'k':	//Use Kitsrus protocol
@@ -220,6 +263,28 @@ int main(int argc, char *argv[])
 				break;
 			case	'p':		//The name of the device to program (ex. 16F877)
 				PartName = optarg;
+				break;
+			case 0:	//Handle long opts with no shortcut
+				switch(option_val)
+				{
+					case OPT_VAL_UPDATE:
+						command = CMD_UPDATE_INFO;
+						break;
+					case OPT_VAL_UPDATE_FILE:
+						UpdatePath = optarg;
+						break;
+					case OPT_VAL_UPDATE_URL:
+						UpdateURL = optarg;
+						break;
+					case OPT_VAL_CLEAR_INFO:
+						command = CMD_CLEAR_INFO;
+						break;
+					case OPT_VAL_NO_UPDATE:
+						no_update = true;
+						break;
+					case OPT_VAL_KIT149:
+						break;
+				}
 				break;
 			default:	//Display usage information
 				display_usage();
@@ -317,11 +382,16 @@ int main(int argc, char *argv[])
 		{
 //			std::cout << "Soft reset failed\nTrying a hard reset\n";
 			
-			//FIXME This won't work for Kit149 (A or B)
 			if(!programmer.hard_reset())
 			{
-				std::cerr << "Couldn't reset the device\n";
-				exit(EXIT_FAILURE);
+				std::cout << "Hard reset failed. Trying a K149 reset...\n";
+				//Try assuming that the programmer is a Kit149
+				programmer.set_149();
+				if(!programmer.hard_reset())
+				{
+					std::cerr << "Couldn't reset the device\n";
+					exit(EXIT_FAILURE);
+				}
 			}
 		}
 		//Enter command mode
