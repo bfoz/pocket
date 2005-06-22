@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <iostream>
 
+#include	"extattr.h"
 #include "kitsrus.h"
 #include "intelhex.h"
 
@@ -424,6 +425,18 @@ namespace kitsrus
 		}
 	}
 
+	bool kitsrus_t::get_chip_info(ext_attrs_t &attrs, std::string PartName)
+	{
+		//Parse each attribute
+		for(ext_attrs_t::iterator i = attrs.begin(); i != attrs.end(); ++i)
+		{
+//			std::cout << i->first << " => " << i->second << std::endl;
+			info.set(i->first, i->second);
+		}
+
+		return true;
+	}
+	
 	bool kitsrus_t::get_chip_info(std::basic_ifstream<char> &in, std::string PartName)
 	{
 		std::string line;

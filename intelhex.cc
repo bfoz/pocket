@@ -82,10 +82,21 @@ namespace intelhex
 		while( (i!=blocks.rend()) && (i->first > addr))
 			++i;
 
-		element relative_addr = addr - i->first;
-		//If addr is outside of a block and not-adjacent to the end of any block add a new block
-		if( relative_addr > i->second.size() )
+		//If no block can be found, return the blank value
+		if( i == blocks.rend() )
 			return blank;
+			
+		
+		element relative_addr = addr - i->first;
+		//If relative_addr is past the end of the block, return blank
+		if( relative_addr >= i->second.size() )
+			return blank;
+
+//		std::cout << __FUNCTION__ << ": addr = " << std::hex << addr << "\n";
+//		std::cout << __FUNCTION__ << ": blank = " << std::hex << blank << "\n";
+//		std::cout << __FUNCTION__ << ": i->first = " << std::hex << i->first << "\n";
+//		std::cout << __FUNCTION__ << ": i->second.size() = " << std::hex << i->second.size() << "\n";
+//		std::cout << __FUNCTION__ << "2\n";
 
 		return i->second[relative_addr];
 	}
@@ -121,11 +132,17 @@ namespace intelhex
 	{
 		size_type s=0;
 		
+//		std::cout << __FUNCTION__ << ": addr = " << std::hex << addr << std::endl;
 		for(iterator i=blocks.begin(); i!=blocks.end(); ++i)
+		{
+//			std::cout << __FUNCTION__ << ": i->first = " << std::hex << i->first << std::endl;
+//			std::cout << __FUNCTION__ << ": i->second.size = " << std::hex << i->second.size() << std::endl;
 			if( (i->first + i->second.size()) < addr)
 				s += i->second.size();
 			else if( i->first < addr )
 				s += addr - i->first;
+		}
+//		std::cout << __FUNCTION__ << ": s = " << std::hex << s << std::endl;
 
 		return s;		
 	}
@@ -216,6 +233,7 @@ namespace intelhex
 		{
 			if(fgetc(fp)==':')	//First character of every line should be ':'
 			{
+//				std::cout << __FUNCTION__ << ": Got line" << std::endl;
 				fscanf(fp, "%2x", &count);			//Read in byte count
 				fscanf(fp, "%4x", &address);		//Read in address
 				fscanf(fp, "%2x", &rtype);			//Read type
@@ -229,6 +247,8 @@ namespace intelhex
 						//Make a data block
 						a = (static_cast<uint32_t>(linear_address) << 16) + address;
 						db = add_block(a, count);
+//						std::cout << __FUNCTION__ << ": db->first = " << std::hex << db->first << std::endl;
+//						std::cout << __FUNCTION__ << ": db->first*2 = " << std::hex << (db->first*2) << std::endl;
 						for(i=0; i<count; i++)				//Read all of the data bytes
 						{
 							fscanf(fp, "%2x", &lo);			//Low byte

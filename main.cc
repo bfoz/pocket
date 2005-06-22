@@ -15,6 +15,7 @@
 #include <fstream>
 
 #include <iostream>
+#include <sstream>
 
 #include <getopt.h>
 #include <signal.h>
@@ -23,9 +24,11 @@
 #include <string.h>
 #include <sys/errno.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
 
+#include	"extattr.h"
 #include "kitsrus.h"
 
 #include "pocket.h"
@@ -59,7 +62,7 @@ static	std::string	DevicePath;
 static	std::string	HexPath;
 static	std::string	PartName;
 static	std::string	UpdatePath;
-static	std::string	UpdateURL = "http://bfoz.net/projects/pocket/PartsDB/export.php?format=extattr";
+static	std::string	UpdateURL = "http://bfoz.net/projects/pocket/PartsDB/export.php?format=extattr&noslashes=true";
 
 //Argument style is similar to tar(1)
 //	k	Use Kitsrus protocol P018 (16 Aug 2004)
@@ -105,7 +108,7 @@ static struct option longopts[] = {
 	{"update",		no_argument,		&option_val, OPT_VAL_UPDATE},
 	{"update_file",required_argument,	&option_val, OPT_VAL_UPDATE_FILE},
 	{"update_url",	required_argument,	&option_val, OPT_VAL_UPDATE_URL},
-	{"clear_info",	required_argument,	&option_val, OPT_VAL_CLEAR_INFO},
+	{"clear_info",	no_argument,	&option_val, OPT_VAL_CLEAR_INFO},
 	{"no_update",	no_argument,	&option_val, OPT_VAL_NO_UPDATE},
 	{ NULL, 0, NULL, 0}
 };
@@ -180,6 +183,24 @@ void do_eeprom_write(kitsrus::kitsrus_t &programmer, intelhex::hex_data &HexData
 		std::cout << "No EEPROM bytes in file\n";
 }
 
+//See if a file already exists
+bool	file_exists(const std::string &fn)
+{
+	struct stat sb;
+
+	if(stat(fn.c_str(),&sb)==0)
+		return true;
+	else
+		return false;
+}
+
+#if defined(__APPLE__) && defined(__MACH__)
+std::string FetchPrefix = "curl ";
+#endif
+#if defined(__FreeBSD__)
+std::string FetchPrefix = "fetch -q -o - ";
+#endif
+
 int main(int argc, char *argv[])
 {
 	FILE *fp;
@@ -194,6 +215,8 @@ int main(int argc, char *argv[])
 	int	ch, n;
 	char	command;
 	intelhex::hex_data	HexData;
+	std::string PathToSelf = argv[0];
+	std::string XAFile = PathToSelf;
 	
 	//getopt() is retarded
 	if(argc == 1)
@@ -294,6 +317,85 @@ int main(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 
+	//Find out if the XAs can be stored with the executable or 
+	//	if they need to be stored with a dotfile
+	if( setxattr(XAFile, "net.bfoz:test", "test", 0) == -1)	//Set a test XA
+	{
+		//If the underlying filesystem doesn't support XA, then try to store
+		//	them in a dot file in the user's home directory
+		if(errno == ENOTSUP)
+		{
+			XAFile = std::string(getenv("HOME")) + std::string("/.pocket");
+			std::cout << "Using " <<  XAFile << " for chip info\n";
+			//	If the dot file doesn't exist, try to create it
+			if( !file_exists(XAFile) )
+			{
+				system((std::string("touch ")+XAFile).c_str());
+			}
+		}
+	}
+	removexattr(XAFile, "net.bfoz:test");	//Remove the test XA
+	
+	//Handle Chipinfo related commands
+	std::string Response;
+	std::string Key, Value;
+	std::istringstream ResponseStream;
+	char S[512];
+	switch(command)
+	{
+		case CMD_UPDATE_INFO:
+			if(UpdatePath.length() != 0)
+				fp = popen(("cat " + UpdatePath).c_str(), "r");
+			else
+			{
+//				std::cout << "Updating from " << (FetchPrefix + "\"" + UpdateURL + "\"") << std::endl;
+				fp = popen((FetchPrefix + "\"" + UpdateURL + "\"").c_str(), "r");
+			}
+
+			//Store the returned data in a string
+			//	This seemed easier than futzing with fgets to figure out if it 
+			//		returned a full line. So dump it all to a string, turn it into a stream,
+			//		and then use std::getline to pull out whole lines as strings.
+			while(!feof(fp))
+			{
+				if( fgets(S, 512, fp) != NULL )
+					Response += S;
+			}
+			pclose(fp);
+
+			//Turn the string into a stream so we can do something useful with it
+			ResponseStream.str(Response);
+			
+			//Seperate the stream into strings (one per line)
+			while(ResponseStream)
+			{
+				getline(ResponseStream, Key);	//First line is the key
+				getline(ResponseStream, Value);	//Second line is the value
+
+				//Getline screwiness
+				if( (Key.length() == 0) || (Value.length()==0) )
+					continue;
+
+//				std::cout << Key << " => " << Value << "\n";
+				//Set the attribute
+				if( setxattr(XAFile, Key, Value, 0) == -1)
+				{
+					std::cerr << "Bad setxattr ( [" << Key << "] => [" << Value << "] ): " << strerror(errno) << "\n";
+					exit(1);
+				}
+			}
+			exit(0);
+			break;
+		case CMD_CLEAR_INFO:
+			if( file_exists(XAFile) )
+				remove_xattr(XAFile, "net.bfoz:projects:pocket:PartsDB");
+
+			std::cout << "Chipinfo cleared\n";
+
+			exit(0);
+			break;
+	}
+	
 	//Bail out if a device path isn't available
 	if(DevicePath.length() == 0)
 	{
@@ -333,22 +435,27 @@ int main(int argc, char *argv[])
 	if(kitsrus)
 	{
 		//The Kitsrus DIY programmers require a chipinfo file since they don't store the info internally
-		std::basic_ifstream<char>	ChipInfo(ChipInfoPath.c_str());
-		if(!ChipInfo)
+		//Get the attributes for this chip
+		const std::string prefix("net.bfoz:projects:pocket:PartsDB:" + PartName + ":");
+		ext_attrs_t	attrs = getxattrs(XAFile, prefix);
+		if( attrs.size() == 0 )
 		{
-			std::cerr << "The Kitsrus programmers require a chip info file\n";
+			std::cerr << "Couldn't find the chip info for the specified part ( " << PartName << " )\n";
 			exit(1);
 		}
 
+		//Trim the prefix from the attributes
+		for(ext_attrs_t::iterator i = attrs.begin(); i != attrs.end(); ++i)
+		{
+			i->first.erase(i->first.begin(), i->first.begin() + prefix.length());
+		}
+		
 		kitsrus::kitsrus_t programmer;
-		if(!programmer.get_chip_info(ChipInfo, PartName))	//Get the info record for the specified part
+		if(!programmer.get_chip_info(attrs, PartName))	//Get the info for the specified part
 		{
 			std::cerr << "Had trouble getting the chip info for part " << PartName << std::endl;
 			exit(1);
 		}
-//		else
-//			std::cout << "Found the chip info for the " << PartName << std::endl;
-		ChipInfo.close();		//Close the file stream
 		
 		if( (com.open(DevicePath.c_str(), TTY_OPEN_FLAGS))==-1 )
 		{

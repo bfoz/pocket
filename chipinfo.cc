@@ -16,6 +16,8 @@
 
 namespace chipinfo
 {
+	const std::string	key_ConfigWordDescriptions("ConfigWordDescriptions");
+	
 	bool chipinfo::set(std::string key, std::string value)
 	{
 		if(key=="CHIPname")
@@ -161,9 +163,20 @@ namespace chipinfo
 		else if(key=="ICSPonly") {}
 		else if(key=="ChipID")
 			chip_id = strtol(value.c_str(), NULL, 16);
+		else if(key=="Type") {}
+		else if(key=="ChipID1")	{}
+		else if(key=="FlashROM")	{}
+		else if(key=="NumConfigWords")	{}
+		else if(key=="NumEEPROMBytes")	{}
+		else if(key=="NumPayloadBits")	{}
+		else if(key=="NumPayloadCommandBits")	{}
+		else if(key=="NumROMWords")	{}
+		else if(key=="SocketImageType")	{}
+		else if(key=="Status")	{}
+		else if( equal(key_ConfigWordDescriptions.begin(), key_ConfigWordDescriptions.end(), key.begin()) )	{}
 		else
 		{
-			std::cout << "Unrecognized key: " << key << " = " << value << std::endl;
+			std::cout << "Unrecognized key: " << key << " => " << value << std::endl;
 			return false;
 		}
 		return true;
