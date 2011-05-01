@@ -1,27 +1,47 @@
+<?php
+	include_once '/home/bfoz/public_html/include/common.php';
+?>
 <html>
-<head><title>Unix tools for the Pocket Programmer</title></head>
+<head>
+	<title>Pocket Programmer</title>
+	<link rel="stylesheet" href="<?php echo $HOME_URL ?>/style.css" type="text/css" />
+</head>
 
-<BODY BGCOLOR="#efefef" TEXT="black" LINK="blue" VLINK="#551A8B" ALINK="red">
-<h1>Unix Tools for <a href="http://www.bubblesoftonline.com/pocket/pocket.html">Tony Nixon's Pocket Programmer</a></h1>
+<body>
+<h1>Pocket Programmer</a></h1>
+
 <h2>Overview</h2>
-<p>Tony Nixon has created an excellent programmer for microcontrollers that he is making available as a kit on his <a href="http://www.bubblesoftonline.com/pocket/pocket.html">website</a>. Currently the software provided for the programmer only runs in Windows which is a problem for those of us who don't use Windows. So, I've started writing some tools that will work in Unix. My development platform is <a href="http://www.freebsd.org">FreeBSD</a> so for now thats all these tools are guaranteed to work with. I'll gladly take patches for other OS's. I'd also like to work on a set of tools for PalmOS at some point. Very shortly I'll have a public CVS server going so others can checkout the code. </p>
-<h3>Features</h3>
+<p>Originally I wrote this utility to interface with the <a href="http://www.piclist.com/techref/microchip/pocketprog.htm">Pocket</a> programmer sold by Tony Nixon because he only provided Windows software. It was a good programmer that came with lousy software that wouldn't run on FreeBSD, so I set about to scratch an itch. Since then, <a href="http://kitsrus.com">Kitsrus</a> has started selling a line of programmers based on Tony's work. I've added support to pocket for the new programmers because they come with the same Windows-only software. The app is still called 'pocket', but now it supports the Kitsrus programmers as well.</p>
+
+<p>The primary development platforms are OS X and FreeBSD. I'll gladly take patches for other OS's.</p>
+
+<h3>Supported Programmers</h3>
 <ul>
-	<li>Updating of chip info and message text. Chip info is actually a little buggy right now, any volunteers to fix it?</li>
-	<li>PocketPro mode programming, erasing and reading
+	<li><a href="http://www.piclist.com/techref/microchip/pocketprog.htm">Pocket</a> (not maintained)</li>
+	<li>All of the Kitsrus programmers that use the <a href="http://bfoz.net/projects/pocket/diy_protocol_p018.html">P018</a> protocol are supported, except the K149 because it uses an inverted DTR.</li>
 </ul>
-<h3>To Do</h3>
-<ul>
-	<li>Add command line options for specifying chip info and message files</li>
-	<li>Add support for File Import/Export</li>
-	<li>Add the ability to display useage info</li>
-</ul>
+
 <h3>Download</h3>
 <p>
-<a href="pocket-0.0.0.1.tbz">pocket-0.0.0.1 source</a><br>
-<a href="pocket.tar.gz">Original source code (for the nastalgic)</a><br>
+<a href="files/pocket-0.4.tgz">pocket-0.4 source</a><br>
+<a href="files/pocket-0.3.tgz">pocket-0.3 source</a><br>
+<a href="files/pocket-0.2.tgz">pocket-0.2 source</a><br>
+<a href="files/pocket-0.1.tbz">pocket-0.1 source</a><br>
+<a href="files/pocket.tar.gz">Original source code (for the nastalgic)</a><br>
 <!-- <a href="pocket.tar">FreeBSD/i386 Binary</a></p> -->
-<a href="pocket.zip">Original Bubblesoft Online Windows software.</a> Extract pocket.zip to an empty directory and you're ready to go.<br>
+<a href="files/pocket.zip">Original Bubblesoft Online Windows software.</a> Extract pocket.zip to an empty directory and you're ready to go.<br>
+
+<h3>June 21, 2005</h3> <!-- @ 20:32:00 Pacific -->
+<p><strong>New Version: pocket-0.4</strong><p>
+<p>I've been on a database craze lately so I put all of the chip info into a <a href="http://bfoz.net/projects/pocket/PartsDB/">database</a>. Actually, I did that back in May, but I just now got around to updating pocket to take advantage of it. Which is the long way of saying that those of us using OS X Tiger can now live free of the tyranny of the chip info file. woohoo!</p>
+<p>Now pocket can retrieve its chip info using the --update option (BTW, long options are supported now too), which then stores the chipinfo as extended attributes attached to the executable. But that only works if you have write privs on the executable. If you don't, pocket will automatically create $HOME/.pocket and attach the attributes to it. Either way, extended attributes don't work on files that are mounted over the network. Also, FreeBSD seems to have a limit on the number of attributes a file can have and naturally the limit is smaller than I need. So for now pocket is effectively restricted to OS X. I've only tested it on Tiger since I don't have a Panther box. </p>
+
+<h3>April 23, 2005</h3> <!-- @ 20:18:00 Pacific -->
+<p>This is mostly a bug-fix release to take care of some serious bugs in the handling of sparse hex files. A few other things were prettied up too, but the code is still very messy. There are some things I'd still like to change but haven't yet because it would break the Pocket specific code. I'm still not sure if I should just dump the old code or try to update it. I don't have a working Pocket handy for testing and I'm reluctant to fiddle with code that I can't test.</p>
+
+<h3>April 21, 2005</h3> <!-- @ 22:27:57 Pacific -->
+<p>I've added support for the <a href="http://kitsrus.com">Kitsrus</a> programmers that use the P018 protocol. The original protocol document needed some help so I made a <a href="http://bfoz.net/projects/pocket/diy_protocol_p018.html">new version</a>. There's something wrong with the serial code on FreeBSD. It works fine on a real UART but seems to have problems with both the Prolific and FTDI based USB-232 converters. I haven't bothered to track it down since I mostly use my Powerbook now for this sort of thing. Consequently it works great on OS X (Panther, until I upgrade to Tiger). Compilation and installation are still straightforward. Use make to compile the binary and then copy it and the chipinfo.cid file to someplace useful (or change your $PATH). Usage info is obtained in usual way. Let me know if there are any problems.
+</p>
 
 <h3>May 31, 2003</h3>
 <p>Since the loss of Bubblesoft and the apparent disappearance of Tony Nixon I've had a few requests for the original set of software distributed with the pocket. Unfortunately I seem to be the last bastion of support for the Pocket Programmer. Fortunately there are still a few people using this great tool so it lives on. I don't use Windows much so I've long since lost my copy of the original distro. <a href="http://brumley.dynip.com/">Alan Brunley</a> still has his and has kindly made it available. I've added pocket.zip to the downloads section on this page, hopefully Tony (wherever he is) won't mind me posting it.</p>

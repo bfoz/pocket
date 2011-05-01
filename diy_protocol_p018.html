@@ -1,0 +1,604 @@
+<HTML>
+	<HEAD>
+		<TITLE>	KITSRUS PROGRAMMER FIRMWARE PROTOCOL P018 AS OF 16 AUGUST 2004</TITLE>
+	</HEAD>
+	<BODY>
+		<H1>KITSRUS PROGRAMMER FIRMWARE PROTOCOL P018 AS OF 16 AUGUST 2004</H1>
+		<p>-Revised 1 March 2005, clarifications by Brandon Fosdick and Bob Axtell</p>
+		<p>-Corrections 21 April 2005, Brandon Fosdick</p>
+<BR>
+<h2>Introduction</h2>
+<p>This is a description of the protocol used by a host computer to talk to the Kitsrus DIY line of PIC programmers. These programmers (and this protocol) were derived from the Pocket Programmer originally created by Tony Nixon. At the end of this treatise a short clarification of how the FTDI FT232BM is used in the DIY programmers is presented.</p>
+
+<p>The exchange sequences listed below are from the perspective of the programmer and therefore describe what the programmer expects to send and receive. As such, the sequences are a psuedocode that should be fairly easy for the average coder to sort out. Constructs like SEND(N) indicate that the programmer is going to send N bytes to the host. Similarly, EXPECT(N) indicates that the programmer is waiting for N bytes to be sent from the host. Naturally, a byte is assumed to be 8 bits and the length of a word is dependent upon the PIC being programmed. The serial port setup is 19200,8,N,1 and cannot be changed.</p>
+
+<p>Upon Powerup, the PIC sends two bytes: 'B' (ASCII) + Firmware Type (Byte).</p>
+
+<p>The Firmware Type byte can be decoded as:
+
+	<table align=center>
+		<tr align=center>
+			<th>Kit</th>
+			<th>Type Code</th>
+		</tr>
+		<tr>
+			<td>K128</td>
+			<td align=center>0</td>
+			<td></td>
+		</tr>
+		<tr>
+			<td>K149-A</td>
+			<td align=center>1</td>
+			<td>{RS232 Mode}</td>
+		</tr>
+		<tr>
+			<td>K149-B</td>
+			<td align=center>2</td>
+			<td>{USB Mode}</td>
+		</tr>
+		<tr>
+			<td>K150</td>
+			<td align=center>3</td>
+			<td></td>
+		</tr>
+		<tr>
+			<td>K170</td>
+			<td align=center>4</td>
+			<td>{never implemented}</td>
+		</tr>
+		<tr>
+			<td>K182</td>
+			<td align=center>5</td>
+			<td>{acts like K128}</td>
+		</tr>
+		<tr>
+			<td>K185</td>
+			<td align=center>0x44</td>
+			<td>{new design}</td>
+		</tr>
+	</table>
+</p>
+
+<p><strong>NOTE</strong>: This is never seen with USB based programmers since it's sent immediately upon connecting the USB cable. Its nearly impossible to plug in a cable and launch a terminal fast enough to actually see these two bytes. But the host can force a reset by pulsing DTR ON/OFF (K128,K182,K150,K185). The pulse operates in reverse for the K149: OFF/ON;<BR>
+in fact DTR is normally SET during normal operation of the K149.</p>
+
+<h2>Power On Mode</h2>
+<p>After power-up the programmer waits to hear from the host before going into command mode. The host must send ASCII 'P' (0x50) to convince the programmer to enter command mode. If anything else is sent the programmer returns ASCII 'Q' (0x51) and goes back to waiting for 'P'. When it gets a 'P' it then sends a 'P' and enters command mode. Generally it will never come back here during operation, however the blank check commands do send it back here for some reason.</p>
+
+<pre style="margin-left: 10%"><code>
+LOOP
+   EXPECT(1) ASCII 'P' (0x50)
+   IF 'P'
+      SEND(1) ASCII 'P' (0x50)
+      GOTO Command Mode
+   ELSE
+      SEND(1) ASCII 'Q' (0x51)
+END LOOP
+</code></pre>
+
+
+<h2>Command Mode</h2>
+<p>Once in command mode the programmer waits for a single binary byte indicating the command to execute. The recognized commands and their functions are listed below.</p>
+<p>
+<table align=center border=1>
+	<tr>
+		<th>Command</th>
+		<th>Description</th>
+		<th>Sequence</th>
+		<th>Notes</th>
+	</tr>
+	<tr>
+		<td align=center>0</td>
+		<td>Do nothing</td>
+		<td><code>GOTO Command Mode</code></td>
+		<td></td>
+	</tr>
+	<tr>
+		<td align=center valign=top>1</td>
+		<td valign=top>Quit Command Mode</td>
+		<td valign=top>
+			<pre><code>
+SEND(1) ASCII 'Q' (0x51)
+GOTO Power On Mode
+			</code></pre>
+		</td>
+		<td></td>
+	</tr>
+	<tr>
+		<td align=center valign=top>2</td>
+		<td valign=top>Echo the next byte and return to command mode</td>
+		<td valign=top>
+			<pre><code>
+EXPECT(1) - take whatever was sent
+SEND(1) - send it back
+GOTO Command Mode
+			</code></pre>
+		</td>
+		<td></td>
+	</tr>
+	<tr>
+		<td align=center valign=top>3</td>
+		<td valign=top>INITIALISE PROGRAMMING VARIABLES</td>
+		<td valign=top>
+			<pre><code>
+EXPECT(1) ROM size High
+EXPECT(1) ROM size Low
+EXPECT(1) EEPROM size High
+EXPECT(1) EEPROM size Low
+EXPECT(1) Core Type
+EXPECT(1) Program Flags
+EXPECT(1) Programming Delay = (0 - 255) &times; 100&micro;
+EXPECT(1) Power Sequence
+EXPECT(1) Erase Mode
+EXPECT(1) Number attempts before reporting failure
+EXPECT(1) Over Program when programming succeeds
+SEND(1) ASCII 'I' (0x49)
+GOTO Command Mode
+			</code></pre>
+		</td>
+		<td>
+			<dl>
+				<dt>Core Type</dt>
+					<dd>0 = 18F6x2x</d>
+					<dd>1 = 18Fx230x330</dd>
+					<dd>2 = 18Fxx2xx8</dd>
+					<dd>3 = 16F87 88</dd>
+					<dd>4 = 12C50x</dd>
+					<dd>5 = 12C67x 16C50x 16Cxxx</dd>
+					<dd>6 = 16C8x 16F8x 16F87x 16F62x</dd>
+					<dd>7 = 16F7x 16F7x7</dd>
+					<dd>8 = 12F67x</dd>
+					<dd>9 = 16F87xA</dd>
+					<dd>10 = 16F818</dd>
+					<dd>11 = 16F57</dd>
+					<dd>12 = 10Fxxx</dd>
+			</dl>
+			<dl>Program Flags
+				<dt>Bit 0 = 1</dt>
+				<dd>Chip has calibration value ROM word</dd>
+				<dt>Bit 1 = 1</dt>
+				<dd>Chip has Band Gap value in FUSE</dd>
+				<dt>Bit 2 = 1</dt>
+				<dd>Sets single panel access for 18F</dd>
+				<dt>Bit 3 = 1</dt>
+				<dd>Use a much smaller than normal delay between activating Vcc/Vpp1/Vpp2</dd>
+			</dl>
+			<dl>
+				<dt>Power Sequence</dt>
+					<dd>0 = VCC only</dd>
+					<dd>1 = VCC then VPP1</dd>
+					<dd>2 = VCC then VPP2</dd>
+					<dd>3 = VPP1 then VCC</dd>
+					<dd>4 = VPP2 then VCC</dd>
+				<dt>Erase Mode</dt>
+					<dd>0 = 16C8x 16F8x 16F87x</dd>
+					<dd>1 = 16F7x</dd>
+					<dd>2 = 12F67x</dd>
+					<dd>3 = I6F7x7</dd>
+					<dd>4 = 18Fxxxx</dd>
+					<dd>5 = 16F87xA F818 F87</dd>
+					<dd>6 = 10Fxxx</dd>
+					<dd>7 = 16F57</dd>
+			</dl>
+		</td>
+	</tr>
+	<tr>
+		<td align=center valign=top>4</td>
+		<td valign=top>TURN ON PROGRAMMING VOLTAGES</td>
+		<td valign=top>
+			<pre><code>
+SEND ASCII 'V' (0x56)
+GOTO Command Mode
+			</code></pre>
+		</td>
+		<td>Command 3 must be sent at before sending Command 4. Otherwise the programmer will hang.</td>
+	</tr>
+	<tr>
+		<td align=center valign=top>5</td>
+		<td valign=top>TURN OFF PROGRAMMING VOLTAGES</td>
+		<td valign=top>
+			<pre><code>
+SEND ASCII 'v' (0x76)
+GOTO Command Mode
+			</code></pre>
+		</td>
+		<td></td>
+	</tr>
+	<tr>
+		<td align=center valign=top>6</td>
+		<td valign=top>CYCLE PROGRAMMING VOLTAGES OFF THEN BACK ON</td>
+		<td valign=top>
+			<pre><code>
+SEND ASCII 'V' (0x56)
+GOTO Command Mode
+			</code></pre>
+		</td>
+		<td>Command 3 must be sent before sending Command 6. Otherwise the programmer will hang.</td>
+	</tr>
+	<tr>
+		<td align=center valign=top>7</td>
+		<td valign=top>PROGRAM ROM</td>
+		<td valign=top>
+			<pre><code>
+EXPECT(1) Program word count High
+EXPECT(1) Program word count Low
+LOOP -  Programming loop
+   IF no programming error
+      IF all words programmed
+         SEND(1) ASCII 'P' (0x50)
+         GOTO Command Mode
+      ELSE</li>
+         SEND(1) ASCII 'Y' (0x59)
+         EXPECT(32) 32 program bytes (in High, Low order)
+   ELSE</li>
+      SEND(1) ASCII 'N' (0x4E)
+      SEND(1) Current Address High
+      SEND(1) Current Address Low
+      SEND(1) Bad ROM word High
+      SEND(1) Bad ROM word Low
+      GOTO Command Mode
+END LOOP
+			</code></pre>
+		</td>
+		<td>
+			<ol>
+				<li>The programming variables must have been initialized before sending this command.</li>
+				<li>The word count sent to the programmer must be the actual number of words in the program. However, the programmer works with 32 byte chunks and will always ask for at least 64 bytes, regardless of program length. The extra bytes that it requests are ignored, and therefore can be garbage.</li>
+			</ol>
+		</td>
+	</tr>
+	<tr>
+		<td align=center valign=top>8</td>
+		<td valign=top>PROGRAM EEPROM</td>
+		<td valign=top>
+			<pre><code>
+EXPECT(1) EEPROM byte count High
+EXPECT(1) EEPROM byte count Low
+SEND(1) ASCII 'Y' (0x59)
+LOOP - Programming loop
+   EXPECT(1) EEPROM byte x
+   EXPECT(1) EEPROM byte x + 1
+   IF all bytes programmed
+      SEND(1) ASCII 'P' (0x50)
+      GOTO Command Mode
+   ELSE
+      SEND(1) ASCII 'Y' (0x59)
+END LOOP
+GOTO Command Mode	
+			</code></pre>
+		</td>
+		<td valign=top>
+			<ol>
+				<li>The programming variables must have been initialized before sending this command.</li>
+				<li>Byte count must be a multiple of 2 (an even number), use a pad byte if necessary</li>
+				<li>The programmer will always request two extra bytes, the values of which will be ignored.</li>
+			</ol>
+		</td>
+	</tr>
+	<tr>
+		<td align=center valign=top>9</td>
+		<td valign=top>PROGRAM Configuration Words</td>
+		<td valign=top>
+			<pre><code>
+EXPECT(1) ASCII '0' (0x30)
+EXPECT(1) ASCII '0' (0x30)
+EXPECT(22) config bytes
+SEND(1) ASCII 'Y' (0x59)
+GOTO Command Mode
+			</code></pre>
+		</td>
+		<td>
+			<ol>
+				<li>The programming variables must have been initialized before sending this command.</li>
+				<li>For 14bit PICs this function programs both ID and Fuse, but for 16bit PICs it only programs the ID bytes and saves the fuses for later (use command 17)</li>
+			</ol>
+			<dl>
+				<dt>Config Bytes for a 14 bit PIC</dt>
+					<dd>ID1 ID2 ID3 ID4 'F' 'F' 'F' 'F' (ASCII)</dd>
+					<dd>FUSE Value Low</dd>
+					<dd>FUSE Value High</dd>
+					<dd>0xFF (Byte)</dd>
+					<dd>0xFF (Byte)</dd>
+					<dd>0xFF (Byte)</dd>
+					<dd>0xFF (Byte)</dd>
+					<dd>0xFF (Byte)</dd>
+					<dd>0xFF (Byte)</dd>
+					<dd>0xFF (Byte)</dd>
+					<dd>0xFF (Byte)</dd>
+					<dd>0xFF (Byte)</dd>
+					<dd>0xFF (Byte)</dd>
+					<dd>0xFF (Byte)</dd>
+					<dd>0xFF (Byte)</dd>
+				<dt>Config Bytes for a 16 bit PIC</dt>
+					<dd>ID1 ID2 ID3 ID4 1D5 1D6 1D7 1D8</dd>
+					<dd>FUSE1 Value Low</dd>
+					<dd>FUSE1 Value High</dd>
+					<dd>FUSE2 Value Low</dd>
+					<dd>FUSE2 Value High</dd>
+					<dd>FUSE3 Value Low</dd>
+					<dd>FUSE3 Value High</dd>
+					<dd>FUSE4 Value Low</dd>
+					<dd>FUSE4 Value High</dd>
+					<dd>FUSE5 Value Low</dd>
+					<dd>FUSE5 Value High</dd>
+					<dd>FUSE6 Value Low</dd>
+					<dd>FUSE6 Value High</dd>
+					<dd>FUSE7 Value Low</dd>
+					<dd>FUSE7 Value High</dd>
+				</dl>
+		</td>
+	</tr>
+	<tr>
+		<td align=center valign=top>10</td>
+		<td valign=top>PROGRAM CALIBRATION</td>
+		<td>
+			<pre><code>
+EXPECT(1) Calibration High
+EXPECT(1) Calibration Low
+EXPECT(1) FUSE High
+EXPECT(1) FUSE Low
+IF Calibration Error
+   SEND(1) ASCII 'C' (0x43)
+IF Fuse Error
+   SEND(1) ASCII 'F' (0x46)
+IF No Errors
+   SEND(1) ASCII 'Y' (0x59)
+GOTO Command Mode
+			</code></pre>
+		</td>
+		<td></td>
+	</tr>
+	<tr>
+		<td align=center valign=top>11</td>
+		<td valign=top>READ ROM</td>
+		<td valign=top>
+			<pre><code>
+LOOP - for all ROM words starting at address zero
+   SEND(1) ROM word High
+   SEND(1) ROM word Low
+   IF received a byte
+      GOTO Command Mode
+END LOOP
+GOTO Command Mode
+			</code></pre>
+		</td>
+		<td>This command will abort if a byte is received from the PC while transferring</td>
+	</tr>
+	<tr>
+		<td align=center valign=top>12</td>
+		<td valign=top>READ EEPROM</td>
+		<td valign=top>
+			<pre><code>
+LOOP - for all EEPROM bytes starting at address zero
+   SEND(1) EEPROM byte
+   IF received a byte
+      GOTO Command Mode
+END LOOP
+GOTO Command Mode
+			</code></pre>
+		</td>
+		<td>This command will abort if a byte is received from the PC while transferring</td>
+	</tr>
+	<tr>
+		<td align=center valign=top>13</td>
+		<td valign=top>READ CONFIGURATION</td>
+		<td valign=top>
+			<pre><code>
+SEND(1) ASCII 'C' (0x43)
+SEND(26) Content depends on chip, or 0xFF if unused	
+GOTO Command Mode			
+			</code></pre>
+		</td>
+		<td>
+			<dl>
+				<dt>Configuration Format</dt>
+				<dd>ChipID_L (Byte)</dd>
+				<dd>ChipID_H (Byte)</dd>
+				<dd>ID1 (Byte)</dd>
+				<dd>ID2 (Byte)</dd>
+				<dd>ID3 (Byte)</dd>
+				<dd>ID4 (Byte)</dd>
+				<dd>ID5 (Byte)</dd>
+				<dd>ID6 (Byte)</dd>
+				<dd>ID7 (Byte)</dd>
+				<dd>ID8 (Byte)</dd>
+				<dd>Fuse1_L (Byte)</dd>
+				<dd>Fuse1_H  (Byte)</dd>
+				<dd>Fuse2_L (Byte) can also be CAL word #1 or address 0x2008, or 10Fxxx Backup CAL word</dd>
+				<dd>Fuse2_H (Byte)</dd>
+				<dd>Fuse3_L (Byte) can also be CAL word #2 or address 0x2009</dd>
+				<dd>Fuse3_H (Byte)</dd>
+				<dd>Fuse4_L (Byte)</dd>
+				<dd>Fuse4_H (Byte)</dd>
+				<dd>Fuse5_L (Byte)</dd>
+				<dd>Fuse5_H (Byte)</dd>
+				<dd>Fuse6_L (Byte)</dd>
+				<dd>Fuse6_H (Byte)</dd>
+				<dd>Fuse7_L (Byte)</dd>
+				<dd>Fuse7_H (Byte)</dd>
+				<dd>Calibrate_L (Byte)</dd>
+				<dd>Calibrate_H (Byte)</dd>
+			</dl>
+		</td>
+	</tr>
+	<tr>
+		<td align=center valign=top>14</td>
+		<td valign=top>ERASE CHIP</td>
+		<td valign=top>
+			<pre><code>
+SEND(1) ASCII 'Y' (0x59)
+			</code></pre>
+		</td>
+		<td></td>
+	</tr>
+	<tr>
+		<td align=center valign=top>15</td>
+		<td valign=top>ERASE CHECK ROM</td>
+		<td valign=top>
+			<pre><code>
+EXPECT(1) Value of the high byte of a blank ROM word
+IF All ROM checked
+   IF All Blank
+      SEND(1) ASCII 'Y' (0x59)
+   ELSE
+      IF Cal word not blank
+         SEND(1) ASCII 'C' (0x43)
+      ELSE
+         SEND(1) ASCII 'N' (0x4E)
+ELSE
+   SEND(1) ASCII 'B' (0x42) after every 256 blank words
+GOTO Command Mode
+			</code></pre>
+		</td>
+		<td>For example, the high byte of the blank value for a 14 bit PIC is 0x3F and for a 16 bit PIC is 0xFF</td>
+	</tr>
+	<tr>
+		<td align=center valign=top>16</td>
+		<td valign=top>ERASE CHECK EEPROM</td>
+		<td valign=top>
+			<pre><code>
+IF All Blank
+   SEND(1) ASCII 'Y' (0x59)
+ELSE
+   SEND(1) ASCII 'N' (0x4E)
+GOTO Command Mode
+			</code></pre>
+		</td>
+		<td></td>
+	</tr>
+	<tr>
+		<td align=center valign=top>17</td>
+		<td valign=top>PROGRAM 18Fxxxx FUSE</td>
+		<td valign=top>
+			<pre><code>
+SEND(1) ASCII 'Y' (0x59)
+GOTO Command Mode
+			</code></pre>
+		</td>
+		<td>Programs the Fuses that were sent as part of command 9</td>
+	</tr>
+	<tr>
+		<td align=center valign=top>18</td>
+		<td valign=top>CHIP IN SOCKET DETECT</td>
+		<td valign=top>
+			<pre><code>
+SEND(1) ASCII 'A' (0x41)
+IF Chip is in socket
+   SEND(1) ASCII 'Y' (0x59)
+GOTO Power On Mode
+			</code></pre>
+		</td>
+		<td></td>
+	</tr>
+	<tr>
+		<td align=center valign=top>19</td>
+		<td valign=top>CHIP OUT OF SOCKET DETECT</td>
+		<td valign=top>
+			<pre><code>
+SEND(1) ASCII 'A' (0x41)
+IF Chip is not in socket
+   SEND(1) ASCII 'Y' (0x59)
+GOTO Power On Mode
+			</code></pre>
+		</td>
+		<td></td>
+	</tr>
+	<tr>
+		<td align=center valign=top>20</td>
+		<td valign=top>GET VERSION</td>
+		<td valign=top>
+			<pre><code>
+SEND(1) Firmware Version (See firmware version table)
+GOTO Command Mode
+			</code></pre>
+		</td>
+		<td></td>
+	</tr>
+	<tr>
+		<td align=center valign=top>21</td>
+		<td valign=top>GET PROTOCOL</td>
+		<td valign=top>
+			<pre><code>
+SEND(4) Protocol version string ("P018")
+GOTO Command Mode
+			</code></pre>
+		</td>
+		<td></td>
+	</tr>
+	<tr>
+		<td align=center valign=top>22</td>
+		<td valign=top>PROGRAM DEBUG VECTOR</td>
+		<td valign=top>
+			<pre><code>
+EXPECT(1) High address of DEBUG vector
+EXPECT(1) Mid address of DEBUG vector
+EXPECT(1) Low address of DEBUG vector
+IF Success
+   SEND(1) ASCII 'Y' (0x59)
+ELSE
+   SEND(1) ASCII 'N' (0x4E)
+GOTO Command Mode
+			</code></pre>
+		</td>
+		<td></td>
+	</tr>
+	<tr>
+		<td align=center valign=top>23</td>
+		<td valign=top>READ DEBUG VECTOR</td>
+		<td valign=top>
+			<pre><code>
+SEND(1) 0xEF
+SEND(1) High address of DEBUG vector
+SEND(1) Mid address of DEBUG vector
+SEND(1) Low address of DEBUG vector
+GOTO Command Mode
+			</code></pre>
+		</td>
+		<td></td>
+	</tr>
+	<tr>
+		<td align=center valign=top>24</td>
+		<td valign=top>PROGRAM CAL DATA FOR 10Fxxx</td>
+		<td valign=top>
+			<pre><code>
+EXPECT(1) Calibration High
+EXPECT(1) Calibration Low
+EXPECT(1) Backup Calibration High
+EXPECT(1) Backup Calibration Low
+IF Calibration Error
+   SEND(1) ASCII 'C' (0x43)
+IF Backup Calibration Error
+   SEND(1) ASCII 'B' (0x42)
+IF No Errors
+   SEND(1) ASCII 'Y' (0x59)
+GOTO Command Mode
+			</code></pre>
+		</td>
+		<td></td>
+	</tr>
+</table>
+</p>
+
+<h2>USB DEVICE FT232BM</h2>
+<p>The FT232BM is a USB-driven USB1.1 to RS232 converter. It allows an RS232 design to be used in a non-RS232 environment. The device works very well for that purpose. The way we use the device, no known issues have arisen.</p>
+
+<p>As implemented in DIY programmers, the FT232BM is NOT provided with PnP strings (PnP ID Strings are used by the Windows / Linux host to assist in installing drivers) so this makes the drivers more difficult to install. DIY depends on standard non-PnP VCP drivers provided by FTDI. Win98 (an especially stupid O/S) is sometimes very difficult to install the drivers in; when a problem occurs, the old drivers MUST be physically removed from the path before re-installing a second time.</p>
+
+<p>Normally, when the programmer is first installed, the VCP driver assigns a fixed"COMM PORT" value to the channel. Every time the USB cable is removed and inserted normally,that same port value is always used. But if the VCP driver detects an error, it RELEASESthat port, which then might be reassigned to possibly another port. This can occur withK149/K150 units when the POWER to the unit is removed before the USB cable is removed. So to prevent port reassignment, the user should remember to INSERT USB Cable LAST when powering up, and REMOVE USB Cable FIRST when powering down. This eliminates 90% of the driver issues with DIY programmers.</p>
+
+<h2>Programming Sequence</h2>
+<p>Preliminary...</p>
+<ol>
+	<li>Initialize Programming Variables - Command 3</li>
+	<li>Turn on Programming Voltages - Command 4</li>
+	<li>If programming ROM - Command 7</li>
+	<li>If programming EEPROM - Command 8</li>
+	<li>If programming config - Command 9</li>
+	<li>If programming Fuses for 18F - Command 17</li>
+	<li>Turn off Programming Voltages - Command 5</li>
+</ol>
+
+<BR><A HREF="http://www.cyber-matrix.com/txt2htm.htm">Built by Text2Html</A>
+
+	</BODY>
+</HTML>
