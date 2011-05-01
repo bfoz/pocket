@@ -1,0 +1,83 @@
+body			{ color: black; background-color: white;	}
+a:link		{ color: blue;	}
+a:visited	{ color: #551A8B;	}
+
+/* For the date display on each block of links*/   
+.date
+{ 
+    border-bottom: 1px solid #000000;
+    margin-top: 2em;
+}
+
+.copyright
+{
+	border-top: 1px solid #000000;
+	margin-top: 3em;
+}
+
+.link_descr
+{
+	margin-bottom: 1em;
+	margin-top: 0em;
+	margin-left: 1em;
+}
+
+#LinkBar
+{
+	float: left;
+ 	padding-left: 1em;
+ 	padding-right: 1em;
+	margin-top: 1em;
+}
+
+h1 { text-align: center; }
+
+#header, #content
+{
+	margin-left: 125px;
+	max-width: 600px;
+	padding: 0 1em;
+}
+
+#header 
+{
+	border-bottom: 1px solid black;
+	border-left: 1px solid black;
+	margin-bottom: 1em;
+/*	margin-bottom: 25px; */
+}
+
+#content
+{
+	margin-bottom: 10px;
+	border-left: 1px solid black;
+	border-top: 1px solid black;
+}
+
+#footer
+{
+	clear: both;
+	text-align: center;
+	border-top: 1px solid black;
+}
+/*
+h3.post_title {
+	margin: 0;
+	}
+*/
+/*	Individual post related stuff	*/
+.post_title
+{
+	font-size: large;
+	font-weight: bold;
+	text-decoration: none;
+}
+
+a.post_title:link      { color: #000000; } 
+a.post_title:visited   { color: #000000; } 
+a.post_title:hover     { color: #664400;  } 
+
+.post
+{
+	padding-bottom: 20px;
+}
